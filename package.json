@@ -19,6 +19,10 @@
   "homepage": "https://github.com/Nmilien34/corner#readme",
   "description": "",
   "devDependencies": {
+    "@types/pdf-parse": "^1.1.5",
     "concurrently": "^9.2.1"
+  },
+  "dependencies": {
+    "pdf-parse": "^2.4.5"
   }
 }

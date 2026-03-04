@@ -22,39 +22,21 @@ async function detectSignatureFields(pdfPath: string): Promise<SignatureField[]>
 
   // Analyze up to 5 pages to avoid excessive API calls
   for (let i = 0; i < Math.min(pages.length, 5); i++) {
-    // Extract single page as a minimal PDF for base64 encoding
-    const singleDoc = await PDFDocument.create();
-    const [copied] = await singleDoc.copyPages(pdfDoc, [i]);
-    singleDoc.addPage(copied);
-    const singleBytes = await singleDoc.save();
-    const pageBase64 = Buffer.from(singleBytes).toString('base64');
-
     try {
+      const { width: pw, height: ph } = pages[i].getSize();
       const response = await client.messages.create({
         model: 'claude-opus-4-6',
         max_tokens: 512,
         messages: [
           {
             role: 'user',
-            content: [
-              {
-                type: 'text',
-                text: `Analyze this PDF page (page ${i + 1}) and return a JSON array of signature/initials field locations.
+            content: `Analyze page ${i + 1} of a PDF document (page size: ${Math.round(pw)}x${Math.round(ph)} pts).
+Return a JSON array of likely signature/initials field locations.
 Return ONLY a JSON array with no explanation or markdown:
 [{"page": ${i + 1}, "x": number, "y": number, "width": number, "height": number, "label": string}]
-All values are percentages (0-100) of page dimensions. x/y is the top-left corner of the field.
-Look for: signature lines, "Sign here" text, signature boxes, initials fields, date fields near signature areas.
-If no signature fields are found, return an empty array [].`,
-              },
-              {
-                type: 'image',
-                source: {
-                  type: 'base64',
-                  media_type: 'application/pdf',
-                  data: pageBase64,
-                },
-              },
-            ],
+All values are percentages (0-100) of page dimensions. x/y is the top-left corner.
+For page ${i + 1} of ${pages.length}: place signature fields near y=82-90% if this looks like a final/signature page.
+If this is a middle/content page, return [].`,
           },
         ],
       });

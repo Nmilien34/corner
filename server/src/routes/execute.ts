@@ -86,7 +86,7 @@ executeRoute.get('/file/:fileId', (req: Request, res: Response) => {
   // Match any file whose name starts with the fileId UUID
   let matched: string | undefined;
   try {
-    matched = fs.readdirSync(TMP_DIR).find((f) => f.startsWith(fileId));
+    matched = fs.readdirSync(TMP_DIR).find((f) => f.startsWith(String(fileId)));
   } catch (_) {
     res.status(500).json({ error: 'Could not read file directory' });
     return;
