@@ -18,8 +18,10 @@ function getToolMap(): Record<string, ToolFn> {
   const { compressPdf } = require('../tools/compressPdf');
   const { mergePdf } = require('../tools/mergePdf');
   const { splitPdf } = require('../tools/splitPdf');
+  const { wordToPdf } = require('../tools/wordToPdf');
   const { convertImage } = require('../tools/convertImage');
   const { compressImage } = require('../tools/compressImage');
+  const { resizeImage } = require('../tools/resizeImage');
   const { removeBackground } = require('../tools/removeBackground');
   const { runOcr } = require('../tools/ocr');
   const { generateQr } = require('../tools/generateQr');
@@ -30,8 +32,10 @@ function getToolMap(): Record<string, ToolFn> {
     compress_pdf: compressPdf,
     merge_pdf: mergePdf,
     split_pdf: splitPdf,
+    word_to_pdf: wordToPdf,
     convert_image: convertImage,
     compress_image: compressImage,
+    resize_image: resizeImage,
     remove_background: removeBackground,
     ocr: runOcr,
     generate_qr: generateQr,

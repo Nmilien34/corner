@@ -17,24 +17,21 @@ Schema:
   "steps": [{ "tool": string, "params": {}, "description": string }]
 }
 
-Tool Registry:
+Tool Registry (ONLY use these exact tool names, no others):
 - pdf_to_word: converts PDF to DOCX. mode: silent
-- pdf_to_ppt: converts PDF to PPTX. mode: silent
-- pdf_to_excel: converts PDF to XLSX. mode: silent
-- word_to_pdf: converts DOCX/DOC to PDF. mode: silent
 - compress_pdf: reduces PDF file size. mode: silent
-- merge_pdf: combines multiple PDFs. mode: silent
-- split_pdf: splits PDF into pages. mode: silent
+- merge_pdf: combines multiple PDFs into one. mode: silent
+- split_pdf: splits PDF into individual pages or ranges. mode: silent
+- word_to_pdf: converts DOCX or DOC to PDF. mode: silent
 - compress_image: reduces image file size. mode: silent
-- convert_image: converts between JPG/PNG/WEBP/AVIF. mode: silent
-- remove_background: removes image background. mode: silent
-- resize_image: resizes image to dimensions. mode: silent
+- convert_image: converts between JPG, PNG, WEBP, AVIF. mode: silent
+- remove_background: removes image background using AI. mode: silent
+- resize_image: resizes image to specified dimensions. mode: silent
 - ocr: extracts text from image or scanned PDF. mode: silent
 - generate_qr: generates QR code from URL or text. mode: silent
-- esign: adds signature to document. mode: interactive if multiple signers or no saved signature, otherwise silent
-- fill_form: fills PDF form fields. mode: interactive
-- annotate_pdf: adds text/drawings to PDF. mode: interactive
-- password_protect: adds password to PDF. mode: silent
+- esign: adds signature to a PDF document. mode: interactive if multiple signers or ambiguous fields, silent if user has a saved signature
+
+IMPORTANT: If the user's request does not map to any tool above, set tool to null and clarification to a message explaining what Corner can currently do.
 
 Rules:
 - If confidence < 0.7, set clarification question and keep tool/mode as best guess
