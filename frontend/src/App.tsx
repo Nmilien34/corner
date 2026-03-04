@@ -14,6 +14,7 @@ import { useVersionHistory } from './hooks/useVersionHistory';
 import {
   AppMode,
   ChatMessage,
+  ParsedIntent,
   ToolResult,
   ProcessingState,
   SignatureField,
@@ -49,6 +50,7 @@ export default function App() {
     },
     onMessages: setMessages,
     onClarify: () => setMode('clarifying'),
+    onEsignInteractive: handleEsignInteractive,
   });
 
   // Canvas-wide drop zone
@@ -105,6 +107,32 @@ export default function App() {
     setMode('result');
   }, []);
 
+  const handleEsignInteractive = useCallback(
+    (_parsed: ParsedIntent, file: File | undefined) => {
+      if (!file) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: crypto.randomUUID(),
+            role: 'corner',
+            content: 'Please attach a PDF first, then ask me to sign it.',
+            timestamp: Date.now(),
+          },
+        ]);
+        setMode('empty');
+        return;
+      }
+      // Build a local object URL so ESignCanvas can render the PDF immediately
+      const url = URL.createObjectURL(file);
+      setEsignPdfUrl(url);
+      setEsignFields([
+        { page: 1, x: 10, y: 82, width: 35, height: 8, label: 'Signature', placed: true },
+      ]);
+      setMode('esign');
+    },
+    []
+  );
+
   const handleESignConfirm = useCallback(
     async (placedFields: SignatureField[]) => {
       if (!currentFile) return;
@@ -135,6 +163,8 @@ export default function App() {
         setProcessing({ progress: 100, label: 'Signed' });
         await new Promise((r) => setTimeout(r, 400));
         setProcessing(null);
+        URL.revokeObjectURL(esignPdfUrl);
+        setEsignPdfUrl('');
         setCurrentResult(res.data);
         setMode('result');
         addVersion(res.data, 'esign', res.data.fileName);
@@ -253,7 +283,11 @@ export default function App() {
                 pdfUrl={esignPdfUrl}
                 detectedFields={esignFields}
                 onConfirm={handleESignConfirm}
-                onCancel={() => setMode(currentResult ? 'result' : 'empty')}
+                onCancel={() => {
+                  URL.revokeObjectURL(esignPdfUrl);
+                  setEsignPdfUrl('');
+                  setMode(currentResult ? 'result' : 'empty');
+                }}
               />
             )}
           </div>

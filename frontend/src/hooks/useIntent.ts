@@ -7,6 +7,7 @@ interface Options {
   onResult: (result: ToolResult) => void;
   onMessages: (updater: (prev: ChatMessage[]) => ChatMessage[]) => void;
   onClarify: (question: string) => void;
+  onEsignInteractive: (parsed: ParsedIntent, file: File | undefined) => void;
 }
 
 async function runTool(
@@ -43,7 +44,7 @@ function addMessage(
   ]);
 }
 
-export function useIntent({ onProcessingChange, onResult, onMessages, onClarify }: Options) {
+export function useIntent({ onProcessingChange, onResult, onMessages, onClarify, onEsignInteractive }: Options) {
   const execute = useCallback(
     async (message: string, file?: File) => {
       try {
@@ -65,10 +66,18 @@ export function useIntent({ onProcessingChange, onResult, onMessages, onClarify 
           return;
         }
 
-        // 3. Confirm action in chat
+        // 3. Intercept esign interactive — hand off to canvas, don't execute yet
+        if (parsed.tool === 'esign' && parsed.mode === 'interactive') {
+          addMessage(onMessages, 'corner', parsed.intent);
+          onProcessingChange(null);
+          onEsignInteractive(parsed, file);
+          return;
+        }
+
+        // 4. Confirm action in chat
         addMessage(onMessages, 'corner', parsed.intent);
 
-        // 4. Build step list (single-step or multi-step)
+        // 5. Build step list (single-step or multi-step)
         const steps =
           parsed.steps?.length > 0
             ? parsed.steps
@@ -108,7 +117,7 @@ export function useIntent({ onProcessingChange, onResult, onMessages, onClarify 
           }
         }
 
-        // 5. Done
+        // 6. Done
         onProcessingChange({ progress: 100, label: 'Done' });
         await new Promise((r) => setTimeout(r, 300));
         onProcessingChange(null);
@@ -120,7 +129,7 @@ export function useIntent({ onProcessingChange, onResult, onMessages, onClarify 
         onProcessingChange(null);
       }
     },
-    [onProcessingChange, onResult, onMessages, onClarify]
+    [onProcessingChange, onResult, onMessages, onClarify, onEsignInteractive]
   );
 
   return { execute };
