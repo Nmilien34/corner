@@ -1,0 +1,24 @@
+{
+  "name": "corner",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "dev": "concurrently \"npm run dev --prefix client\" \"npm run dev --prefix server\"",
+    "install:all": "npm install && npm install --prefix client && npm install --prefix server"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Nmilien34/corner.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Nmilien34/corner/issues"
+  },
+  "homepage": "https://github.com/Nmilien34/corner#readme",
+  "description": "",
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}

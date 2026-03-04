@@ -1,0 +1,46 @@
+{
+  "name": "server",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "dev": "nodemon --exec ts-node src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "test": "vitest run"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.78.0",
+    "archiver": "^7.0.1",
+    "cors": "^2.8.6",
+    "docx": "^9.6.0",
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1",
+    "form-data": "^4.0.5",
+    "mammoth": "^1.11.0",
+    "multer": "^2.1.1",
+    "node-fetch": "^2.7.0",
+    "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^5.5.207",
+    "qrcode": "^1.5.4",
+    "sharp": "^0.34.5",
+    "tesseract.js": "^7.0.0",
+    "uuid": "^13.0.0"
+  },
+  "devDependencies": {
+    "@types/archiver": "^7.0.0",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/multer": "^2.0.0",
+    "@types/node": "^25.3.3",
+    "@types/node-fetch": "^2.6.13",
+    "@types/uuid": "^10.0.0",
+    "nodemon": "^3.1.14",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  }
+}
