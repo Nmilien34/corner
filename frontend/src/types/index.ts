@@ -1,8 +1,8 @@
 export type ToolName =
-  | 'pdf_to_word' | 'pdf_to_ppt' | 'pdf_to_excel' | 'word_to_pdf'
+  | 'pdf_to_word' | 'word_to_pdf'
   | 'compress_pdf' | 'merge_pdf' | 'split_pdf'
   | 'compress_image' | 'convert_image' | 'remove_background' | 'resize_image'
-  | 'ocr' | 'generate_qr' | 'esign' | 'fill_form' | 'annotate_pdf' | 'password_protect'
+  | 'ocr' | 'generate_qr' | 'esign'
 
 export type ExecutionMode = 'silent' | 'interactive'
 export type VersionStatus = 'processing' | 'complete' | 'error'
@@ -25,11 +25,10 @@ export interface ParsedIntent {
 export interface VersionNode {
   id: string
   label: string
-  toolName: ToolName | string
-  timestamp: number
+  timestamp: Date
   status: VersionStatus
-  fileId: string
-  fileUrl: string
+  fileSnapshot?: Blob
+  downloadUrl?: string
   isCurrent: boolean
 }
 

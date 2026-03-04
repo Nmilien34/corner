@@ -1,55 +1,75 @@
-import { useState, useCallback } from 'react';
-import { VersionNode, ToolResult } from '../types';
+import { useState, useEffect } from 'react';
+import { VersionNode } from '../types';
 
-const STORAGE_KEY = 'corner:versions';
-const MAX_VERSIONS = 20;
+const STORAGE_KEY = 'corner:version-history';
+const MAX_NODES = 20;
 
 function loadFromStorage(): VersionNode[] {
   try {
-    const raw = sessionStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as VersionNode[];
+    // Rehydrate Date objects — JSON.parse turns them into strings
+    return parsed.map((node) => ({
+      ...node,
+      timestamp: new Date(node.timestamp),
+    }));
   } catch {
     return [];
   }
 }
 
-function saveToStorage(versions: VersionNode[]) {
+function saveToStorage(nodes: VersionNode[]) {
   try {
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(versions));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(nodes));
   } catch {
-    // sessionStorage quota exceeded — ignore
+    // localStorage full or unavailable — fail silently
+    console.warn('corner: could not persist version history');
   }
 }
 
 export function useVersionHistory() {
-  const [versions, setVersions] = useState<VersionNode[]>(loadFromStorage);
+  const [nodes, setNodes] = useState<VersionNode[]>(loadFromStorage);
 
-  const addVersion = useCallback((result: ToolResult, toolName: string, label: string) => {
-    setVersions((prev) => {
-      const next = prev.map((v) => ({ ...v, isCurrent: false }));
-      const node: VersionNode = {
-        id: result.fileId,
-        label,
-        toolName,
-        timestamp: Date.now(),
-        status: 'complete',
-        fileId: result.fileId,
-        fileUrl: result.downloadUrl,
-        isCurrent: true,
-      };
-      const updated = [node, ...next].slice(0, MAX_VERSIONS);
-      saveToStorage(updated);
-      return updated;
+  // Sync to localStorage whenever nodes change
+  useEffect(() => {
+    saveToStorage(nodes);
+  }, [nodes]);
+
+  function addNode(label: string, fileSnapshot?: Blob, downloadUrl?: string): VersionNode {
+    const newNode: VersionNode = {
+      id: crypto.randomUUID(),
+      label,
+      timestamp: new Date(),
+      status: 'complete',
+      fileSnapshot,
+      downloadUrl,
+      isCurrent: true,
+    };
+
+    setNodes((prev) => {
+      const updated = prev.map((n) => ({ ...n, isCurrent: false }));
+      return [...updated, newNode].slice(-MAX_NODES);
     });
-  }, []);
 
-  const restoreVersion = useCallback((id: string) => {
-    setVersions((prev) => {
-      const updated = prev.map((v) => ({ ...v, isCurrent: v.id === id }));
-      saveToStorage(updated);
-      return updated;
-    });
-  }, []);
+    return newNode;
+  }
 
-  return { versions, addVersion, restoreVersion };
+  function updateNode(id: string, patch: Partial<VersionNode>) {
+    setNodes((prev) => prev.map((n) => (n.id === id ? { ...n, ...patch } : n)));
+  }
+
+  function restoreNode(id: string): VersionNode | null {
+    setNodes((prev) => prev.map((n) => ({ ...n, isCurrent: n.id === id })));
+    return nodes.find((n) => n.id === id) ?? null;
+  }
+
+  function clearHistory() {
+    setNodes([]);
+    localStorage.removeItem(STORAGE_KEY);
+  }
+
+  const currentNode = nodes.findLast((n) => n.isCurrent) ?? null;
+
+  return { nodes, currentNode, addNode, updateNode, restoreNode, clearHistory };
 }

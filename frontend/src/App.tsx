@@ -37,7 +37,7 @@ export default function App() {
   const [esignFields, setEsignFields] = useState<SignatureField[]>([]);
   const [esignPdfUrl, setEsignPdfUrl] = useState('');
 
-  const { versions, addVersion } = useVersionHistory();
+  const { nodes, addNode } = useVersionHistory();
 
   // Intent hook wires parse → execute → result
   const { execute: executeIntent } = useIntent({
@@ -46,7 +46,7 @@ export default function App() {
       setCurrentResult(result);
       setMode('result');
       setRightOpen(true);
-      addVersion(result, 'tool', result.fileName);
+      addNode(result.fileName, undefined, result.downloadUrl);
     },
     onMessages: setMessages,
     onClarify: () => setMode('clarifying'),
@@ -98,11 +98,11 @@ export default function App() {
 
   const handleVersionRestore = useCallback((v: VersionNode) => {
     setCurrentResult({
-      fileId: v.fileId,
+      fileId: v.id,
       fileName: v.label,
-      mimeType: v.fileUrl.endsWith('.pdf') ? 'application/pdf' : 'image/png',
+      mimeType: v.downloadUrl?.endsWith('.pdf') ? 'application/pdf' : 'image/png',
       sizeBytes: 0,
-      downloadUrl: v.fileUrl,
+      downloadUrl: v.downloadUrl ?? '',
     });
     setMode('result');
   }, []);
@@ -167,7 +167,7 @@ export default function App() {
         setEsignPdfUrl('');
         setCurrentResult(res.data);
         setMode('result');
-        addVersion(res.data, 'esign', res.data.fileName);
+        addNode(res.data.fileName, undefined, res.data.downloadUrl);
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'E-sign failed';
         setMessages((prev) => [
@@ -183,17 +183,18 @@ export default function App() {
         setProcessing(null);
       }
     },
-    [currentFile, addVersion]
+    [currentFile, addNode, esignPdfUrl]
   );
 
   const handleUndo = useCallback(() => {
-    if (versions.length > 1) {
-      handleVersionRestore(versions[1]);
+    // nodes is newest-last; undo goes to second-to-last
+    if (nodes.length > 1) {
+      handleVersionRestore(nodes[nodes.length - 2]);
     } else {
       setMode('empty');
       setCurrentResult(null);
     }
-  }, [versions, handleVersionRestore]);
+  }, [nodes, handleVersionRestore]);
 
   return (
     <div
@@ -221,7 +222,7 @@ export default function App() {
       <Topbar fileName={currentResult?.fileName} />
 
       <div className="flex flex-1 overflow-hidden">
-        <LeftPanel versions={versions} onVersionRestore={handleVersionRestore} />
+        <LeftPanel versions={nodes} onVersionRestore={handleVersionRestore} />
 
         {/* Canvas */}
         <main

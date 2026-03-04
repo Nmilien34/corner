@@ -7,8 +7,8 @@ interface Props {
   onVersionRestore: (v: VersionNode) => void;
 }
 
-function formatRelative(ts: number): string {
-  const diff = Date.now() - ts;
+function formatRelative(ts: Date): string {
+  const diff = Date.now() - ts.getTime();
   if (diff < 60_000) return 'just now';
   if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
   return `${Math.floor(diff / 3_600_000)}h ago`;
