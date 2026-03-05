@@ -1,28 +1,100 @@
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600&family=Dancing+Script:wght@500&display=swap');
+
 @import "tailwindcss";
 
 :root {
-  --bg:           #F2EDE6;
-  --canvas:       #FAF7F4;
-  --text-primary: #1A1714;
-  --text-muted:   #8B7D6B;
-  --accent:       #8B7355;
-  --border:       #E4DDD4;
-  --white:        #FFFFFF;
-  --hover:        #EDE8E1;
+  /* ── Corner brand colors (unchanged) ── */
+  --bg:            #F2EDE6;
+  --canvas:        #FAF7F4;
+  --text-primary:  #1A1714;
+  --text-muted:    #8B7D6B;
+  --accent:        #8B7355;
+  --border:        #E4DDD4;
+  --white:         #FFFFFF;
+  --hover:         #EDE8E1;
   --topbar-height: 48px;
+
+  /* ── Semantic aliases (BoltzmanChat naming → Corner values) ── */
+  --bg-white-0:      var(--white);
+  --bg-weak-50:      var(--hover);
+  --bg-strong-950:   var(--text-primary);
+
+  --text-strong-950: var(--text-primary);
+  --text-sub-600:    var(--text-muted);
+  --text-soft-400:   #A89880;
+  --text-disabled:   #C8BDB0;
+
+  --stroke-soft-200:   var(--border);
+  --stroke-strong-950: var(--text-primary);
+
+  /* ── Shadow system ── */
+  --shadow-xs:       0 1px 2px 0 rgba(0,0,0,0.06);
+  --shadow-sm:       0 2px 4px rgba(0,0,0,0.08);
+  --shadow-md:       0 4px 16px -4px rgba(0,0,0,0.10), 0 1px 4px rgba(0,0,0,0.06);
+  --shadow-realistic: 0px 10px 37px 4px rgba(0,0,0,0.04), 0px 1px 5px 0px rgba(0,0,0,0.08);
+  --shadow-focus:    0 0 0 2px var(--white), 0 0 0 4px rgba(139,115,85,0.25);
 }
 
-* {
+*, *::before, *::after {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
 }
 
+html, body, #root {
+  height: 100%;
+  width: 100%;
+}
+
 body {
   background: var(--bg);
   color: var(--text-primary);
-  font-family: 'Geist', ui-sans-serif, system-ui, sans-serif;
+  font-family: 'Geist', 'Geist Variable', ui-sans-serif, system-ui, sans-serif;
   font-size: 13px;
   line-height: 1.6;
+  letter-spacing: 0.012em;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+button, input, textarea {
+  font-family: 'Geist', 'Geist Variable', ui-sans-serif, system-ui, sans-serif;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+.hide-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+.hide-scrollbar::-webkit-scrollbar { display: none; }
+
+.custom-scrollbar::-webkit-scrollbar { width: 6px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 9999px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+/* ── Selection ── */
+::selection { background: rgba(139,115,85,0.15); }
+
+/* ── Animations ── */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(-10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Keep old name as alias so no other component breaks */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
