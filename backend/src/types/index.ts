@@ -1,26 +1,12 @@
-export interface ToolResult {
-  fileId: string;
-  downloadUrl: string;
-  fileName: string;
-  mimeType: string;
-  sizeBytes: number;
-  previewUrl?: string;
-}
+// Re-export shared types so existing `import { ToolResult } from '../types'`
+// imports continue to work after the shared-types migration.
+export type { ToolResult, SignatureField } from '@corner/shared';
 
+/** Internal server-side result returned by tool implementations. */
 export interface ServerToolResult {
   fileId: string;
   filePath: string;
   fileName: string;
   mimeType: string;
   sizeBytes: number;
-}
-
-export interface SignatureField {
-  page: number;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  label: string;
-  placed?: boolean;
 }
