@@ -13,6 +13,7 @@
   --white:         #FFFFFF;
   --hover:         #EDE8E1;
   --topbar-height: 48px;
+  color-scheme: light;
 
   /* ── Semantic aliases (BoltzmanChat naming → Corner values) ── */
   --bg-white-0:      var(--white);
@@ -93,7 +94,7 @@ button, input, textarea {
   to   { opacity: 1; transform: translateY(0); }
 }
 
-/* Keep old name as alias so no other component breaks */
+/* TODO: remove after EmptyState.tsx migrated to fadeIn (Task 4) */
 @keyframes fadeInUp {
   from { opacity: 0; transform: translateY(10px); }
   to   { opacity: 1; transform: translateY(0); }
