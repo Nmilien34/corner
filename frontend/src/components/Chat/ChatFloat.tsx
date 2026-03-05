@@ -1,4 +1,4 @@
-import { useRef, useState, KeyboardEvent } from 'react';
+import { useRef, useState, type KeyboardEvent } from 'react';
 import { Paperclip, ArrowUp } from 'lucide-react';
 import type { ChatMessage } from '../../types';
 import ChatMessageComp from './ChatMessage';
@@ -17,6 +17,7 @@ export default function ChatFloat({ messages, currentFile, onSend, disabled }: P
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const recentMessages = messages.slice(-6);
+  const isExpanded = !!(text.trim() || attachedFile);
   const canSend = !!(text.trim() || attachedFile || currentFile) && !disabled;
 
   const handleSend = () => {
@@ -71,28 +72,33 @@ export default function ChatFloat({ messages, currentFile, onSend, disabled }: P
 
       {/* Input row */}
       <div
-        className="flex items-end gap-2 w-full max-w-xl rounded-xl px-3 py-2 pointer-events-auto"
+        className="flex items-end gap-2 w-full max-w-xl px-3 py-2 pointer-events-auto"
         style={{
           background: 'var(--white)',
           border: '1px solid var(--border)',
-          boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
+          boxShadow: 'var(--shadow-realistic)',
+          borderRadius: isExpanded ? 14 : 9999,
+          transition: 'border-radius 200ms ease-out',
         }}
       >
         {/* File attach button */}
         <button
           onClick={() => fileInputRef.current?.click()}
-          className="shrink-0 flex items-center justify-center rounded-lg mb-1"
+          className="shrink-0 flex items-center justify-center mb-1 transition-all duration-200 ease-out"
           style={{
-            width: 32,
-            height: 32,
+            width: 36,
+            height: 36,
+            borderRadius: 9999,
             background: 'none',
-            border: 'none',
+            border: '1px solid var(--border)',
             color: attachedFile ? 'var(--accent)' : 'var(--text-muted)',
             cursor: 'pointer',
           }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--hover)'; e.currentTarget.style.borderColor = 'transparent'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; e.currentTarget.style.borderColor = 'var(--border)'; }}
           title="Attach file"
         >
-          <Paperclip size={15} strokeWidth={1.5} />
+          <Paperclip size={14} strokeWidth={1.5} />
         </button>
         <input
           ref={fileInputRef}
@@ -128,15 +134,16 @@ export default function ChatFloat({ messages, currentFile, onSend, disabled }: P
         <button
           onClick={handleSend}
           disabled={!canSend}
-          className="shrink-0 flex items-center justify-center rounded-lg mb-1"
+          className="shrink-0 flex items-center justify-center mb-1"
           style={{
-            width: 32,
-            height: 32,
-            background: canSend ? 'var(--text-primary)' : 'var(--border)',
-            border: 'none',
+            width: 36,
+            height: 36,
+            borderRadius: 9999,
+            background: canSend ? 'var(--text-primary)' : 'none',
+            border: canSend ? 'none' : '1px solid var(--border)',
             color: canSend ? 'var(--white)' : 'var(--text-muted)',
             cursor: canSend ? 'pointer' : 'default',
-            transition: '150ms ease',
+            transition: 'all 200ms ease-out',
           }}
         >
           <ArrowUp size={14} strokeWidth={2} />
