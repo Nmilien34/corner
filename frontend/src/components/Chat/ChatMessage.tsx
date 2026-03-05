@@ -5,6 +5,7 @@ export default function ChatMessage({ message }: { message: ChatMessageType }) {
   const isCorner = message.role === 'corner';
 
   return (
+    <div style={{ animation: 'fadeIn 0.3s ease-out forwards' }}>
     <div className={`flex ${isCorner ? 'justify-start' : 'justify-end'}`}>
       <div
         className="flex flex-col gap-1"
@@ -16,9 +17,9 @@ export default function ChatMessage({ message }: { message: ChatMessageType }) {
         <span
           style={{
             color: 'var(--accent)',
-            fontSize: '10px',
+            fontSize: '11px',
             fontWeight: 500,
-            letterSpacing: '0.05em',
+            letterSpacing: '0.02em',
           }}
         >
           {isCorner ? 'CORNER' : 'YOU'}
@@ -33,6 +34,7 @@ export default function ChatMessage({ message }: { message: ChatMessageType }) {
             lineHeight: 1.5,
             borderRadius: isCorner ? 0 : '10px',
             border: isCorner ? 'none' : '1px solid var(--border)',
+            boxShadow: isCorner ? 'var(--shadow-xs)' : 'none',
           }}
         >
           {message.content}
@@ -53,6 +55,7 @@ export default function ChatMessage({ message }: { message: ChatMessageType }) {
           </div>
         )}
       </div>
+    </div>
     </div>
   );
 }
