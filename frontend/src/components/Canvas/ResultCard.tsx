@@ -1,3 +1,4 @@
+import type React from 'react';
 import { Download, RotateCcw, Edit3 } from 'lucide-react';
 import type { ToolResult } from '../../types';
 
@@ -12,6 +13,39 @@ function formatBytes(b: number): string {
   if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`;
   return `${(b / (1024 * 1024)).toFixed(1)} MB`;
 }
+
+const strokeBtn: React.CSSProperties = {
+  height: 36,
+  padding: '0 12px',
+  borderRadius: 10,
+  background: 'none',
+  border: '1px solid var(--border)',
+  boxShadow: 'var(--shadow-xs)',
+  color: 'var(--text-muted)',
+  fontSize: '12px',
+  cursor: 'pointer',
+  fontFamily: 'Geist, sans-serif',
+  transition: 'all 200ms ease-out',
+  display: 'flex',
+  alignItems: 'center',
+  gap: 6,
+};
+
+const filledBtn: React.CSSProperties = {
+  height: 36,
+  padding: '0 12px',
+  borderRadius: 10,
+  background: 'var(--text-primary)',
+  border: 'none',
+  color: 'var(--white)',
+  fontSize: '12px',
+  cursor: 'pointer',
+  fontFamily: 'Geist, sans-serif',
+  transition: 'all 200ms ease-out',
+  display: 'flex',
+  alignItems: 'center',
+  gap: 6,
+};
 
 export default function ResultCard({ result, onUndo }: Props) {
   const handleDownload = () => {
@@ -30,7 +64,7 @@ export default function ResultCard({ result, onUndo }: Props) {
         background: 'var(--white)',
         borderColor: 'var(--border)',
         maxWidth: 680,
-        boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+        boxShadow: 'var(--shadow-sm)',
       }}
     >
       {/* File info */}
@@ -51,53 +85,26 @@ export default function ResultCard({ result, onUndo }: Props) {
         {onUndo && (
           <button
             onClick={onUndo}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg"
-            style={{
-              background: 'none',
-              border: '1px solid var(--border)',
-              color: 'var(--text-muted)',
-              fontSize: '12px',
-              cursor: 'pointer',
-              fontFamily: 'Geist, sans-serif',
-              transition: '150ms ease',
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--hover)')}
-            onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
+            style={strokeBtn}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--hover)'; e.currentTarget.style.borderColor = 'transparent'; e.currentTarget.style.boxShadow = 'none'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.boxShadow = 'var(--shadow-xs)'; }}
           >
             <RotateCcw size={13} strokeWidth={1.5} /> Undo
           </button>
         )}
 
         <button
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg"
-          style={{
-            background: 'none',
-            border: '1px solid var(--border)',
-            color: 'var(--text-muted)',
-            fontSize: '12px',
-            cursor: 'pointer',
-            fontFamily: 'Geist, sans-serif',
-            transition: '150ms ease',
-          }}
-          onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--hover)')}
-          onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
+          style={strokeBtn}
+          onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--hover)'; e.currentTarget.style.borderColor = 'transparent'; e.currentTarget.style.boxShadow = 'none'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.boxShadow = 'var(--shadow-xs)'; }}
         >
           <Edit3 size={13} strokeWidth={1.5} /> Edit
         </button>
 
         <button
           onClick={handleDownload}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg"
-          style={{
-            background: 'var(--text-primary)',
-            border: 'none',
-            color: 'var(--white)',
-            fontSize: '12px',
-            cursor: 'pointer',
-            fontFamily: 'Geist, sans-serif',
-            transition: '150ms ease',
-          }}
-          onMouseEnter={(e) => (e.currentTarget.style.opacity = '0.85')}
+          style={filledBtn}
+          onMouseEnter={(e) => (e.currentTarget.style.opacity = '0.88')}
           onMouseLeave={(e) => (e.currentTarget.style.opacity = '1')}
         >
           <Download size={13} strokeWidth={1.5} /> Download
