@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect } from 'react';
 import { Eraser } from 'lucide-react';
-import { SavedSignature } from '../../types';
+import type { SavedSignature } from '../../types';
 
 type Method = 'draw' | 'type' | 'upload';
 

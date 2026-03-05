@@ -1,6 +1,6 @@
 import { useRef, useState, KeyboardEvent } from 'react';
 import { Paperclip, ArrowUp } from 'lucide-react';
-import { ChatMessage } from '../../types';
+import type { ChatMessage } from '../../types';
 import ChatMessageComp from './ChatMessage';
 
 interface Props {

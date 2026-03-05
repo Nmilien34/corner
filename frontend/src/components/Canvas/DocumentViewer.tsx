@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
-import { ToolResult } from '../../types';
+import type { ToolResult } from '../../types';
 import ResultCard from './ResultCard';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(

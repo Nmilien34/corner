@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
 import { Check, X } from 'lucide-react';
-import { SignatureField, SavedSignature } from '../../types';
+import type { SignatureField, SavedSignature } from '../../types';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
   'pdfjs-dist/build/pdf.worker.min.mjs',

@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import axios from 'axios';
-import { ParsedIntent, ToolResult, ProcessingState, ChatMessage } from '../types';
+import type { ParsedIntent, ToolResult, ProcessingState, ChatMessage } from '../types';
 
 interface Options {
   onProcessingChange: (state: ProcessingState | null) => void;

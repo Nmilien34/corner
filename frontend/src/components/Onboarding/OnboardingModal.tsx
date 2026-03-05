@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { SavedSignature } from '../../types';
+import type { SavedSignature } from '../../types';
 import SignatureCapture from './SignatureCapture';
 
 type Step = 'welcome' | 'signature' | 'done';

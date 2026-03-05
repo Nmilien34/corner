@@ -11,7 +11,7 @@ import ESignCanvas from './components/Canvas/ESignCanvas';
 import OnboardingModal from './components/Onboarding/OnboardingModal';
 import { useIntent } from './hooks/useIntent';
 import { useVersionHistory } from './hooks/useVersionHistory';
-import {
+import type {
   AppMode,
   ChatMessage,
   ParsedIntent,
@@ -38,6 +38,31 @@ export default function App() {
   const [esignPdfUrl, setEsignPdfUrl] = useState('');
 
   const { nodes, addNode } = useVersionHistory();
+
+  const handleEsignInteractive = useCallback(
+    (_parsed: ParsedIntent, file: File | undefined) => {
+      if (!file) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: crypto.randomUUID(),
+            role: 'corner',
+            content: 'Please attach a PDF first, then ask me to sign it.',
+            timestamp: Date.now(),
+          },
+        ]);
+        setMode('empty');
+        return;
+      }
+      const url = URL.createObjectURL(file);
+      setEsignPdfUrl(url);
+      setEsignFields([
+        { page: 1, x: 10, y: 82, width: 35, height: 8, label: 'Signature', placed: true },
+      ]);
+      setMode('esign');
+    },
+    []
+  );
 
   // Intent hook wires parse → execute → result
   const { execute: executeIntent } = useIntent({
@@ -106,32 +131,6 @@ export default function App() {
     });
     setMode('result');
   }, []);
-
-  const handleEsignInteractive = useCallback(
-    (_parsed: ParsedIntent, file: File | undefined) => {
-      if (!file) {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: crypto.randomUUID(),
-            role: 'corner',
-            content: 'Please attach a PDF first, then ask me to sign it.',
-            timestamp: Date.now(),
-          },
-        ]);
-        setMode('empty');
-        return;
-      }
-      // Build a local object URL so ESignCanvas can render the PDF immediately
-      const url = URL.createObjectURL(file);
-      setEsignPdfUrl(url);
-      setEsignFields([
-        { page: 1, x: 10, y: 82, width: 35, height: 8, label: 'Signature', placed: true },
-      ]);
-      setMode('esign');
-    },
-    []
-  );
 
   const handleESignConfirm = useCallback(
     async (placedFields: SignatureField[]) => {

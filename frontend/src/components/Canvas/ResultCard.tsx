@@ -1,5 +1,5 @@
 import { Download, RotateCcw, Edit3 } from 'lucide-react';
-import { ToolResult } from '../../types';
+import type { ToolResult } from '../../types';
 
 interface Props {
   result: ToolResult;

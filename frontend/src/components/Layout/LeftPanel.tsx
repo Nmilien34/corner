@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { VersionNode } from '../../types';
+import type { VersionNode } from '../../types';
 
 interface Props {
   versions: VersionNode[];

@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { ParsedIntent, ToolResult } from '../types';
+import type { ParsedIntent, ToolResult } from '../types';
 
 export const api = {
   parseIntent: (

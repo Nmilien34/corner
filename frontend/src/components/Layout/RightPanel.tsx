@@ -1,5 +1,5 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { ToolResult } from '../../types';
+import type { ToolResult } from '../../types';
 
 interface Props {
   isOpen: boolean;

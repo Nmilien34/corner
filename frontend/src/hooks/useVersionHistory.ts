@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { VersionNode } from '../types';
+import type { VersionNode } from '../types';
 
 const STORAGE_KEY = 'corner:version-history';
 const MAX_NODES = 20;
