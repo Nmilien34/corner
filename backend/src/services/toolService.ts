@@ -26,20 +26,36 @@ function buildRegistry(): Partial<Record<ToolName, ToolFn>> {
   const { runOcr }           = require('../tools/ocr');
   const { generateQr }       = require('../tools/generateQr');
   const { eSign }            = require('../tools/esign');
+  const { rotatePdf }        = require('../tools/rotatePdf');
+  const { addPageNumbers }   = require('../tools/addPageNumbers');
+  const { addWatermarkPdf }  = require('../tools/addWatermarkPdf');
+  const { removePasswordPdf }= require('../tools/removePasswordPdf');
+  const { flipRotateImage }  = require('../tools/flipRotateImage');
+  const { addBorderImage }   = require('../tools/addBorderImage');
+  const { watermarkImage }   = require('../tools/watermarkImage');
+  const { imageToPdf }       = require('../tools/imageToPdf');
 
   return {
-    pdf_to_word:       pdfToWord,
-    compress_pdf:      compressPdf,
-    merge_pdf:         mergePdf,
-    split_pdf:         splitPdf,
-    word_to_pdf:       wordToPdf,
-    convert_image:     convertImage,
-    compress_image:    compressImage,
-    resize_image:      resizeImage,
-    remove_background: removeBackground,
-    ocr:               runOcr,
-    generate_qr:       generateQr,
-    esign:             eSign,
+    pdf_to_word:         pdfToWord,
+    compress_pdf:        compressPdf,
+    merge_pdf:           mergePdf,
+    split_pdf:           splitPdf,
+    word_to_pdf:         wordToPdf,
+    convert_image:       convertImage,
+    compress_image:      compressImage,
+    resize_image:        resizeImage,
+    remove_background:   removeBackground,
+    ocr:                 runOcr,
+    generate_qr:         generateQr,
+    esign:               eSign,
+    rotate_pdf:          rotatePdf,
+    add_page_numbers:    addPageNumbers,
+    add_watermark_pdf:   addWatermarkPdf,
+    remove_pdf_password: removePasswordPdf,
+    flip_rotate_image:   flipRotateImage,
+    add_border_image:    addBorderImage,
+    watermark_image:     watermarkImage,
+    image_to_pdf:        imageToPdf,
   };
 }
 
