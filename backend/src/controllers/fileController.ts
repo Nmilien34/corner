@@ -7,7 +7,7 @@ import { createError } from '../middleware/errorHandler';
 const TMP_DIR = path.join(__dirname, '../../tmp/uploads');
 
 export async function handleGetFile(req: Request, res: Response, next: NextFunction): Promise<void> {
-  const { fileId } = req.params;
+  const fileId = req.params['fileId'] as string;
 
   // 1. Try DB record first (when available)
   try {
