@@ -21,7 +21,7 @@ export default function LeftPanel({ versions, onVersionRestore }: Props) {
     return (
       <aside
         className="flex flex-col items-center py-4 shrink-0"
-        style={{ width: 48, borderRight: '1px solid var(--border)', background: 'var(--bg)' }}
+        style={{ width: 48, borderRight: '1px solid var(--border)', background: 'var(--canvas)' }}
       >
         <button
           onClick={() => setCollapsed(false)}
@@ -39,7 +39,7 @@ export default function LeftPanel({ versions, onVersionRestore }: Props) {
       style={{
         width: 220,
         borderRight: '1px solid var(--border)',
-        background: 'var(--bg)',
+        background: 'var(--canvas)',
         overflow: 'hidden',
       }}
     >
@@ -67,7 +67,7 @@ export default function LeftPanel({ versions, onVersionRestore }: Props) {
       </div>
 
       {/* Version history list */}
-      <div className="flex-1 overflow-y-auto px-3 py-3 flex flex-col gap-1">
+      <div className="flex-1 overflow-y-auto custom-scrollbar px-3 py-3 flex flex-col gap-1">
         {versions.length === 0 && (
           <p style={{ color: 'var(--text-muted)', fontSize: '11px', padding: '4px 4px' }}>
             No history yet. Upload a file to get started.
@@ -77,10 +77,10 @@ export default function LeftPanel({ versions, onVersionRestore }: Props) {
           <button
             key={v.id}
             onClick={() => onVersionRestore(v)}
-            className="flex items-start gap-2 text-left w-full rounded-lg px-2 py-1.5 transition-colors"
+            className="flex items-start gap-2 text-left w-full rounded-lg px-2 py-1.5 transition-all duration-200 ease-out"
             style={{ background: 'none', border: 'none', cursor: 'pointer' }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--hover)')}
-            onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--hover)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
           >
             <span
               className="shrink-0 rounded-full mt-1"
@@ -90,6 +90,7 @@ export default function LeftPanel({ versions, onVersionRestore }: Props) {
                 background: v.isCurrent ? 'var(--accent)' : 'var(--border)',
                 display: 'inline-block',
                 border: v.isCurrent ? '1.5px solid var(--accent)' : '1px solid var(--text-muted)',
+                boxShadow: v.isCurrent ? '0 0 0 2px rgba(139,115,85,0.2)' : 'none',
               }}
             />
             <div className="flex flex-col min-w-0">
