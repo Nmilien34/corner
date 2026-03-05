@@ -27,6 +27,7 @@ export default function EmptyState({ onAction }: Props) {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
+          boxShadow: 'var(--shadow-xs)',
         }}
       >
         <span style={{ fontSize: '15px', fontWeight: 500, color: 'var(--accent)' }}>C</span>
@@ -47,7 +48,7 @@ export default function EmptyState({ onAction }: Props) {
           <button
             key={chip.label}
             onClick={() => onAction(chip.prompt)}
-            className="flex items-center gap-2 px-3 py-2 rounded-lg"
+            className="flex items-center gap-2 transition-all duration-200 ease-out"
             style={{
               border: '1px solid var(--border)',
               background: 'var(--white)',
@@ -55,13 +56,16 @@ export default function EmptyState({ onAction }: Props) {
               fontSize: '11px',
               cursor: 'pointer',
               fontFamily: 'Geist, sans-serif',
-              animation: `fadeInUp 200ms ease forwards`,
+              animation: `fadeIn 200ms ease forwards`,
               animationDelay: `${i * 80}ms`,
               opacity: 0,
-              transition: 'background 150ms ease',
+              borderRadius: 9999,
+              height: 36,
+              padding: '0 12px',
+              gap: 8,
             }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--hover)')}
-            onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--white)')}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--hover)'; e.currentTarget.style.boxShadow = 'var(--shadow-xs)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--white)'; e.currentTarget.style.boxShadow = 'none'; }}
           >
             <chip.icon size={13} strokeWidth={1.5} style={{ color: 'var(--accent)' }} />
             {chip.label}
@@ -73,12 +77,6 @@ export default function EmptyState({ onAction }: Props) {
         These are just examples — you can ask for anything.
       </p>
 
-      <style>{`
-        @keyframes fadeInUp {
-          from { opacity: 0; transform: translateY(6px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
-      `}</style>
     </div>
   );
 }

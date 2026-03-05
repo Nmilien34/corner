@@ -94,8 +94,3 @@ button, input, textarea {
   to   { opacity: 1; transform: translateY(0); }
 }
 
-/* TODO: remove after EmptyState.tsx migrated to fadeIn (Task 4) */
-@keyframes fadeInUp {
-  from { opacity: 0; transform: translateY(10px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
