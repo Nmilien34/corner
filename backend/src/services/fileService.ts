@@ -11,6 +11,7 @@ interface SaveFileOpts {
   params: Record<string, unknown>;
   mimeType: string;
   sizeBytes: number;
+  userId?: string;
 }
 
 /**

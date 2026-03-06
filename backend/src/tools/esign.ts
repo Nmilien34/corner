@@ -3,7 +3,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import fs from 'fs';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
-import { ServerToolResult, SignatureField } from '../types';
+import { ServerToolResult, SignatureField, WalkthroughStep } from '../types';
 
 const TMP_DIR = path.join(__dirname, '../../tmp/uploads');
 
@@ -107,6 +107,51 @@ async function embedSignatures(
   return pdfDoc.save();
 }
 
+function buildEsignWalkthrough(fields: SignatureField[]): WalkthroughStep[] {
+  const placed = fields.filter((f) => f.placed);
+  if (!placed.length) return [];
+
+  const steps: WalkthroughStep[] = [];
+
+  // Overview step on the first signature page
+  const first = placed[0];
+  steps.push({
+    id: 'esign-overview',
+    title: 'Signatures applied',
+    description: 'We placed your signature in the key spots on this document.',
+    region: {
+      page: first.page,
+      x: Math.max(0, first.x - 5),
+      y: Math.max(0, first.y - 5),
+      width: Math.min(100 - first.x, first.width + 10),
+      height: Math.min(100 - first.y, first.height + 10),
+    },
+    kind: 'overview',
+  });
+
+  // One step per placed field
+  placed.forEach((field, idx) => {
+    steps.push({
+      id: `esign-field-${idx}`,
+      title: field.label || 'Signature',
+      description:
+        idx === 0
+          ? 'This is where your primary signature appears.'
+          : 'Here is another place where we placed your signature or initials.',
+      region: {
+        page: field.page,
+        x: field.x,
+        y: field.y,
+        width: field.width,
+        height: field.height,
+      },
+      kind: 'signature',
+    });
+  });
+
+  return steps;
+}
+
 export async function eSign(
   files: Express.Multer.File[],
   params: {
@@ -127,12 +172,7 @@ export async function eSign(
       ? params.fields
       : await detectSignatureFields(file.path);
 
-  const signedBytes = await embedSignatures(
-    pdfBytes,
-    fields,
-    params.signatureDataUrl,
-    params.initialsDataUrl
-  );
+  const signedBytes = await embedSignatures(pdfBytes, fields, params.signatureDataUrl, params.initialsDataUrl);
 
   try { fs.unlinkSync(file.path); } catch (_) {}
 
@@ -146,5 +186,6 @@ export async function eSign(
     fileName: `corner_signed_${file.originalname}`,
     mimeType: 'application/pdf',
     sizeBytes: fs.statSync(outPath).size,
+    walkthrough: buildEsignWalkthrough(fields),
   };
 }

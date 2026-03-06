@@ -1,7 +1,9 @@
-import { Schema, model, Document } from 'mongoose';
+import { Schema, model, Document, Types } from 'mongoose';
 
 export interface IJob extends Document {
   jobId: string;
+  userId?: Types.ObjectId;
+  conversationId?: Types.ObjectId;
   tool: string;
   status: 'queued' | 'running' | 'done' | 'error';
   progress: number;
@@ -14,8 +16,10 @@ export interface IJob extends Document {
 
 const schema = new Schema<IJob>(
   {
-    jobId:        { type: String, required: true, unique: true, index: true },
-    tool:         { type: String, required: true },
+    jobId:          { type: String, required: true, unique: true, index: true },
+    userId:         { type: Schema.Types.ObjectId, ref: 'User' },
+    conversationId: { type: Schema.Types.ObjectId, ref: 'Conversation' },
+    tool:           { type: String, required: true },
     status:       { type: String, enum: ['queued', 'running', 'done', 'error'], default: 'queued' },
     progress:     { type: Number, default: 0, min: 0, max: 100 },
     inputFileIds: [{ type: String }],
@@ -26,5 +30,7 @@ const schema = new Schema<IJob>(
   },
   { timestamps: true },
 );
+
+schema.index({ userId: 1, status: 1 });
 
 export const Job = model<IJob>('Job', schema);

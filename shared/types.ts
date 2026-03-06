@@ -88,3 +88,89 @@ export interface SignatureField {
 }
 
 export type ExecutionMode = 'silent' | 'interactive';
+
+export type PlanTier = 'free' | 'pro';
+
+export interface AuthUser {
+  id: string;
+  email: string;
+  displayName: string;
+  plan: PlanTier;
+  emailVerified: boolean;
+}
+
+export interface AuthResponse {
+  accessToken: string;
+  refreshToken: string;
+  user: AuthUser;
+}
+
+export interface TokenRefreshResponse {
+  accessToken: string;
+  refreshToken: string;
+}
+
+// ─── Orchestration Types ────────────────────────────────────────────────────
+
+export interface ChefStep {
+  toolName: string;
+  params: Record<string, unknown>;
+  description: string;
+  reasoning: string;
+  requiresPreviousOutput: boolean;
+}
+
+export interface ChefPlan {
+  understanding: string;
+  clarification: string | null;
+  confidence: number;
+  steps: ChefStep[];
+}
+
+export interface FileMetadata {
+  name: string;
+  type: string;
+  size: number;
+  index: number;
+}
+
+export interface StepResult {
+  stepIndex: number;
+  toolName: string;
+  success: boolean;
+  result?: ToolResult;
+  error?: string;
+}
+
+export interface OrchestrateResult {
+  sessionId: string;
+  plan: ChefPlan;
+  steps: StepResult[];
+  finalResult: ToolResult | null;
+  message: string;
+}
+
+export type OrchestrateEventType =
+  | 'planning'
+  | 'plan_ready'
+  | 'clarification'
+  | 'step_start'
+  | 'step_complete'
+  | 'step_error'
+  | 'done'
+  | 'error';
+
+export interface OrchestrateEvent {
+  type: OrchestrateEventType;
+  sessionId?: string;
+  message?: string;
+  plan?: ChefPlan;
+  stepIndex?: number;
+  tool?: string;
+  description?: string;
+  result?: ToolResult;
+  error?: string;
+  question?: string;
+  finalResult?: ToolResult | null;
+  allSteps?: StepResult[];
+}

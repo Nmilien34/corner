@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import axios from 'axios';
 import type { ParsedIntent, ToolResult, ProcessingState, ChatMessage, ToolName } from '../types';
+import type { OrchestrateEvent } from '@corner/shared';
 import type { RightPanelSettings } from '../components/Layout/RightPanel';
 import { settingsToToolParams } from '../lib/settingsToToolParams';
 
@@ -120,11 +121,14 @@ export function useIntent({ onProcessingChange, onResult, onMessages, onClarify,
         }
 
         // 6. Done
+        const lastToolName = steps[steps.length - 1].tool as ToolName;
         onProcessingChange({ progress: 100, label: 'Done' });
         await new Promise((r) => setTimeout(r, 300));
         onProcessingChange(null);
 
-        if (lastResult) onResult(lastResult, steps[steps.length - 1].tool as ToolName);
+        if (lastResult) {
+          onResult(lastResult, lastToolName);
+        }
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Something went wrong';
         addMessage(onMessages, 'corner', `Error: ${msg}`);
@@ -153,5 +157,99 @@ export function useIntent({ onProcessingChange, onResult, onMessages, onClarify,
     [onProcessingChange, onResult, onMessages]
   );
 
-  return { execute, rerunWithSettings };
+  const executeWithOrchestrator = useCallback(
+    async (message: string, files: File[]) => {
+      try {
+        const formData = new FormData();
+        formData.append('message', message);
+        files.forEach((f) => formData.append('files', f));
+
+        const response = await fetch('/api/orchestrate', { method: 'POST', body: formData });
+        if (!response.body) throw new Error('No response body from orchestrator');
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        // eslint-disable-next-line no-constant-condition
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const chunks = buffer.split('\n\n');
+          buffer = chunks.pop() ?? '';
+
+          for (const chunk of chunks) {
+            if (!chunk.startsWith('data: ')) continue;
+            const json = chunk.slice(6).trim();
+            if (!json) continue;
+
+            const event = JSON.parse(json) as OrchestrateEvent;
+
+            switch (event.type) {
+              case 'planning':
+                onProcessingChange({ progress: 5, label: 'Planning...' });
+                break;
+              case 'plan_ready':
+                if (event.plan?.understanding) {
+                  addMessage(onMessages, 'corner', event.plan.understanding);
+                }
+                // Intercept esign — hand off to interactive canvas before Sous Chef runs
+                if (event.plan?.steps?.some((s) => s.toolName === 'esign')) {
+                  onEsignInteractive(
+                    { tool: 'esign', mode: 'interactive' } as unknown as ParsedIntent,
+                    files[0] as File | undefined
+                  );
+                  onProcessingChange(null);
+                  return;
+                }
+                break;
+              case 'clarification':
+                addMessage(onMessages, 'corner', event.question ?? 'Could you clarify?');
+                onClarify(event.question ?? '');
+                onProcessingChange(null);
+                return;
+              case 'step_start': {
+                const total = event.allSteps?.length ?? (event.stepIndex != null ? event.stepIndex + 1 : 1);
+                onProcessingChange({
+                  progress: Math.round(((event.stepIndex ?? 0) / Math.max(total, 1)) * 85) + 10,
+                  label: event.description ?? `Running ${event.tool}`,
+                  stepCurrent: (event.stepIndex ?? 0) + 1,
+                  stepTotal: total,
+                });
+                break;
+              }
+              case 'step_complete':
+                // Intermediate step done — step_start for the next step will update progress
+                break;
+              case 'step_error':
+                addMessage(onMessages, 'corner', `Step failed: ${event.error ?? 'unknown error'}`);
+                break;
+              case 'done':
+                onProcessingChange({ progress: 100, label: 'Done' });
+                await new Promise((r) => setTimeout(r, 300));
+                onProcessingChange(null);
+                if (event.finalResult) {
+                  const lastStep = event.allSteps?.filter((s) => s.success).pop();
+                  onResult(event.finalResult, (lastStep?.toolName ?? 'convert_image') as ToolName);
+                }
+                break;
+              case 'error':
+                addMessage(onMessages, 'corner', `Error: ${event.message ?? 'Orchestration failed'}`);
+                onProcessingChange(null);
+                break;
+            }
+          }
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Orchestration failed';
+        addMessage(onMessages, 'corner', `Error: ${msg}`);
+        onProcessingChange(null);
+      }
+    },
+    [onProcessingChange, onResult, onMessages, onClarify, onEsignInteractive]
+  );
+
+  return { execute, rerunWithSettings, executeWithOrchestrator };
 }

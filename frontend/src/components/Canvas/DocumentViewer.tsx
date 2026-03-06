@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
-import type { ToolResult } from '../../types';
+import type { ToolResult, WalkthroughStep } from '../../types';
 import ResultCard from './ResultCard';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
@@ -11,9 +11,18 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
 interface Props {
   result: ToolResult;
   onUndo?: () => void;
+  walkthroughStep?: WalkthroughStep | null;
+  previewMode?: 'page' | 'text' | 'frames';
+  zoomPercent?: number;
 }
 
-export default function DocumentViewer({ result, onUndo }: Props) {
+export default function DocumentViewer({
+  result,
+  onUndo,
+  walkthroughStep,
+  previewMode = 'page',
+  zoomPercent = 100,
+}: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -25,16 +34,25 @@ export default function DocumentViewer({ result, onUndo }: Props) {
 
   // Load text content
   useEffect(() => {
-    if (!isText) return;
+    if (!isText && !(isPdf && previewMode === 'text')) return;
     fetch(result.downloadUrl)
       .then((r) => r.text())
       .then(setTextContent)
       .catch(() => setTextContent('(Could not load text)'));
-  }, [result.downloadUrl, isText]);
+  }, [result.downloadUrl, isText, isPdf, previewMode]);
+
+  // Jump to the page for the current walkthrough step, if any
+  useEffect(() => {
+    if (!isPdf || !walkthroughStep?.region) return;
+    const targetPage = walkthroughStep.region.page;
+    if (targetPage && targetPage >= 1 && targetPage <= totalPages) {
+      setCurrentPage(targetPage);
+    }
+  }, [isPdf, walkthroughStep, totalPages]);
 
   // Render PDF page to canvas
   useEffect(() => {
-    if (!isPdf || !canvasRef.current) return;
+    if (!isPdf || !canvasRef.current || previewMode !== 'page') return;
     let cancelled = false;
 
     (async () => {
@@ -48,8 +66,9 @@ export default function DocumentViewer({ result, onUndo }: Props) {
         const canvas = canvasRef.current!;
         const containerWidth = canvas.parentElement?.clientWidth ?? 640;
         const baseViewport = page.getViewport({ scale: 1 });
-        const scale = Math.min((containerWidth - 48) / baseViewport.width, 2);
-        const viewport = page.getViewport({ scale });
+        const baseScale = (containerWidth - 48) / baseViewport.width;
+        const factor = Math.max(0.5, Math.min(zoomPercent / 100, 3));
+        const viewport = page.getViewport({ scale: baseScale * factor });
 
         canvas.width = viewport.width;
         canvas.height = viewport.height;
@@ -64,21 +83,46 @@ export default function DocumentViewer({ result, onUndo }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [result.downloadUrl, currentPage, isPdf]);
+  }, [result.downloadUrl, currentPage, isPdf, previewMode, zoomPercent]);
 
   return (
     <div className="flex flex-col items-center gap-4 w-full h-full overflow-auto">
       {/* Document sheet — canvas feel: sits on the surface with soft shadow */}
       <div
-        className="rounded-lg overflow-hidden w-full flex-shrink-0"
+        className="rounded-lg overflow-hidden w-full shrink-0"
         style={{
           background: 'var(--white)',
           boxShadow: 'var(--canvas-sheet-shadow)',
           border: '1px solid var(--border)',
           maxWidth: 720,
+          position: 'relative',
         }}
       >
-        {isPdf && <canvas ref={canvasRef} className="w-full block" />}
+        {isPdf && previewMode === 'page' && (
+          <>
+            <canvas ref={canvasRef} className="w-full block" />
+            {walkthroughStep?.region && walkthroughStep.region.page === currentPage && (
+              <div
+                className="absolute inset-0 pointer-events-none"
+                style={{ transition: 'opacity 150ms ease' }}
+              >
+                <div
+                  style={{
+                    position: 'absolute',
+                    left: `${walkthroughStep.region.x}%`,
+                    top: `${walkthroughStep.region.y}%`,
+                    width: `${walkthroughStep.region.width}%`,
+                    height: `${walkthroughStep.region.height}%`,
+                    border: '2px solid var(--accent)',
+                    boxShadow: '0 0 0 9999px rgba(0,0,0,0.08)',
+                    borderRadius: 4,
+                    transition: 'all 150ms ease',
+                  }}
+                />
+              </div>
+            )}
+          </>
+        )}
 
         {isImage && (
           <img
@@ -89,7 +133,7 @@ export default function DocumentViewer({ result, onUndo }: Props) {
           />
         )}
 
-        {isText && (
+        {(isText || (isPdf && previewMode === 'text')) && (
           <pre
             className="p-6 overflow-auto"
             style={{
@@ -105,7 +149,7 @@ export default function DocumentViewer({ result, onUndo }: Props) {
           </pre>
         )}
 
-        {!isPdf && !isImage && !isText && (
+        {!isPdf && !isImage && !isText && previewMode === 'page' && (
           <div
             className="flex flex-col items-center justify-center py-12 gap-2"
             style={{ color: 'var(--text-muted)' }}
@@ -123,7 +167,7 @@ export default function DocumentViewer({ result, onUndo }: Props) {
       </div>
 
       {/* Page navigation */}
-      {isPdf && totalPages > 1 && (
+      {isPdf && totalPages > 1 && previewMode === 'page' && (
         <div className="flex items-center gap-4">
           <button
             onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}

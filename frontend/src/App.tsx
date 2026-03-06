@@ -1,14 +1,19 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import axios from 'axios';
 import Topbar from './components/Layout/Topbar';
-import LeftPanel, { type VersionNode as LeftPanelVersionNode } from './components/Layout/LeftPanel';
+import LeftPanel, {
+  type VersionNode as LeftPanelVersionNode,
+  type User as LeftPanelUser,
+} from './components/Layout/LeftPanel';
 import RightPanel, { type RightPanelSettings } from './components/Layout/RightPanel';
 import EmptyState from './components/Canvas/EmptyState';
 import ChatFloat from './components/Chat/ChatFloat';
 import DocumentViewer from './components/Canvas/DocumentViewer';
 import DocCanvas from './components/Canvas/DocCanvas';
 import ESignCanvas from './components/Canvas/ESignCanvas';
+import AiWalkthrough from './components/Walkthrough/AiWalkthrough';
+import SettingsModal from './components/Layout/SettingsModal';
 import OnboardingModal from './components/Onboarding/OnboardingModal';
 import { useIntent } from './hooks/useIntent';
 import { useVersionHistory } from './hooks/useVersionHistory';
@@ -21,6 +26,7 @@ import type {
   SignatureField,
   VersionNode,
   ToolName,
+  WalkthroughStep,
 } from './types';
 
 export default function App() {
@@ -40,6 +46,11 @@ export default function App() {
   const [leftPanelOpen, setLeftPanelOpen] = useState(true); // default expanded; user can collapse
   const [activeNav, setActiveNav] = useState<'recent' | 'starred' | 'trash'>('recent');
   const [canvasViewMode, setCanvasViewMode] = useState(true); // true = canvas with all frames, false = single doc view
+  const [user, setUser] = useState<LeftPanelUser | null>(null);
+  const [walkthroughSteps, setWalkthroughSteps] = useState<WalkthroughStep[] | null>(null);
+  const [walkthroughActive, setWalkthroughActive] = useState(false);
+  const [currentWalkStep, setCurrentWalkStep] = useState<WalkthroughStep | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   // E-sign interactive state
   const [esignFields, setEsignFields] = useState<SignatureField[]>([]);
@@ -73,7 +84,7 @@ export default function App() {
   );
 
   // Intent hook wires parse → execute → result
-  const { execute: executeIntent, rerunWithSettings } = useIntent({
+  const { execute: executeIntent, rerunWithSettings, executeWithOrchestrator } = useIntent({
     onProcessingChange: setProcessing,
     onResult: (result, tool) => {
       setCurrentResult(result);
@@ -82,6 +93,15 @@ export default function App() {
       setRightOpen(true);
       addNode(result.fileName, undefined, result.downloadUrl);
       setCanvasViewMode(true); // show canvas with all docs when new result arrives
+      if (result.walkthrough && result.walkthrough.length > 0) {
+        setWalkthroughSteps(result.walkthrough);
+        setWalkthroughActive(true);
+        setCurrentWalkStep(result.walkthrough[0]);
+      } else {
+        setWalkthroughSteps(null);
+        setWalkthroughActive(false);
+        setCurrentWalkStep(null);
+      }
     },
     onMessages: setMessages,
     onClarify: () => setMode('clarifying'),
@@ -110,9 +130,10 @@ export default function App() {
   });
 
   const handleSend = useCallback(
-    (text: string, file?: File) => {
-      const attachedFile = file ?? currentFile;
-      if (file) setCurrentFile(file);
+    (text: string, files: File[] = []) => {
+      // Merge freshly attached files with the in-canvas file
+      const allFiles = files.length > 0 ? files : currentFile ? [currentFile] : [];
+      if (files.length > 0) setCurrentFile(files[0]);
 
       setMessages((prev) => [
         ...prev,
@@ -121,14 +142,16 @@ export default function App() {
           role: 'user',
           content: text,
           timestamp: Date.now(),
-          attachmentName: attachedFile?.name,
+          attachmentName: allFiles.length > 1
+            ? `${allFiles.length} files`
+            : allFiles[0]?.name,
         },
       ]);
 
       setMode('processing');
-      executeIntent(text, attachedFile ?? undefined);
+      executeWithOrchestrator(text, allFiles);
     },
-    [currentFile, executeIntent]
+    [currentFile, executeWithOrchestrator]
   );
 
   const handleVersionRestore = useCallback((v: VersionNode) => {
@@ -197,6 +220,15 @@ export default function App() {
         setLastTool('esign');
         setMode('result');
         addNode(res.data.fileName, undefined, res.data.downloadUrl);
+        if (res.data.walkthrough && res.data.walkthrough.length > 0) {
+          setWalkthroughSteps(res.data.walkthrough);
+          setWalkthroughActive(true);
+          setCurrentWalkStep(res.data.walkthrough[0]);
+        } else {
+          setWalkthroughSteps(null);
+          setWalkthroughActive(false);
+          setCurrentWalkStep(null);
+        }
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'E-sign failed';
         setMessages((prev) => [
@@ -224,6 +256,17 @@ export default function App() {
       setCurrentResult(null);
     }
   }, [nodes, handleVersionRestore]);
+
+  // Keep center workspace view in sync with Preview tab view mode
+  useEffect(() => {
+    const mode = panelSettings.previewMode;
+    if (!mode) return;
+    if (mode === 'frames') {
+      setCanvasViewMode(true);
+    } else if (mode === 'page' || mode === 'text') {
+      setCanvasViewMode(false);
+    }
+  }, [panelSettings.previewMode]);
 
   return (
     <div
@@ -260,22 +303,24 @@ export default function App() {
             <LeftPanel
               isOpen={leftPanelOpen}
               history={versionHistoryForPanel}
-              user={null}
+              user={user}
               activeNodeId={activeNodeId}
               onRestoreVersion={(id) => {
                 const v = nodes.find((n) => n.id === id);
                 if (v) handleVersionRestore(v);
               }}
-              onClearHistory={() => {
-                clearHistory();
-                console.log('Clear history');
+              onClearHistory={clearHistory}
+              onSignIn={() => {
+                setUser({
+                  name: 'Guest',
+                  email: 'guest@example.com',
+                  plan: 'free',
+                });
               }}
-              onSignIn={() => console.log('Sign in')}
-              onSignOut={() => console.log('Sign out')}
-              onOpenSettings={() => console.log('Open settings')}
+              onSignOut={() => setUser(null)}
+              onOpenSettings={() => setSettingsOpen(true)}
               onNavSelect={(item) => {
                 setActiveNav(item);
-                console.log('Nav select', item);
               }}
               activeNav={activeNav}
               onToggle={() => setLeftPanelOpen((p) => !p)}
@@ -353,7 +398,7 @@ export default function App() {
                 )}
 
                 {mode === 'result' && currentResult && (
-                  <div className="flex flex-col items-center w-full max-w-4xl">
+                  <div className="flex flex-col items-center w-full max-w-4xl relative">
                     {nodes.length >= 1 && (
                       <button
                         type="button"
@@ -372,7 +417,24 @@ export default function App() {
                         ← All documents
                       </button>
                     )}
-                    <DocumentViewer result={currentResult} onUndo={handleUndo} />
+                    <DocumentViewer
+                      result={currentResult}
+                      onUndo={handleUndo}
+                      walkthroughStep={currentWalkStep}
+                      previewMode={panelSettings.previewMode ?? 'page'}
+                      zoomPercent={panelSettings.zoom ?? 100}
+                    />
+                    {walkthroughSteps && walkthroughSteps.length > 0 && (
+                      <AiWalkthrough
+                        steps={walkthroughSteps}
+                        active={walkthroughActive}
+                        onExit={() => {
+                          setWalkthroughActive(false);
+                          setCurrentWalkStep(null);
+                        }}
+                        onStepChange={(step) => setCurrentWalkStep(step)}
+                      />
+                    )}
                   </div>
                 )}
 
@@ -423,6 +485,18 @@ export default function App() {
           onSettingsChange={(patch) => setPanelSettings((prev) => ({ ...prev, ...patch }))}
         />
       </div>
+
+      <SettingsModal
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        settings={panelSettings}
+        onSettingsChange={(patch) =>
+          setPanelSettings((prev) => ({
+            ...prev,
+            ...patch,
+          }))
+        }
+      />
 
       {onboardingVisible && (
         <OnboardingModal onComplete={() => setOnboardingVisible(false)} />

@@ -6,7 +6,7 @@ import ChatMessageComp from './ChatMessage';
 interface Props {
   messages: ChatMessage[];
   currentFile: File | null;
-  onSend: (text: string, file?: File) => void;
+  onSend: (text: string, files: File[]) => void;
   disabled?: boolean;
   /** When true, input floats up below the drop zone (empty state) */
   floatUp?: boolean;
@@ -16,21 +16,19 @@ interface Props {
 
 export default function ChatFloat({ messages, currentFile, onSend, disabled, floatUp, onFocus, onBlur }: Props) {
   const [text, setText] = useState('');
-  const [attachedFile, setAttachedFile] = useState<File | null>(null);
+  const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const recentMessages = messages.slice(-3);
-  const canSend = !!(text.trim() || attachedFile || currentFile) && !disabled;
+  const canSend = !!(text.trim() || attachedFiles.length > 0 || currentFile) && !disabled;
 
   const handleSend = () => {
     if (!canSend) return;
-    onSend(text.trim(), attachedFile ?? undefined);
+    onSend(text.trim(), attachedFiles);
     setText('');
-    setAttachedFile(null);
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-    }
+    setAttachedFiles([]);
+    if (textareaRef.current) textareaRef.current.style.height = 'auto';
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -48,14 +46,14 @@ export default function ChatFloat({ messages, currentFile, onSend, disabled, flo
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files?.[0]) setAttachedFile(e.target.files[0]);
+    if (e.target.files) {
+      setAttachedFiles((prev) => [...prev, ...Array.from(e.target.files!)]);
+    }
   };
 
   const placeholder = disabled
     ? 'working on it...'
-    : attachedFile
-    ? `${attachedFile.name} — what should I do?`
-    : currentFile
+    : currentFile && attachedFiles.length === 0
     ? `${currentFile.name} ready — ask anything...`
     : 'ask anything or drop a file...';
 
@@ -74,6 +72,42 @@ export default function ChatFloat({ messages, currentFile, onSend, disabled, flo
         <div className="flex flex-col gap-1.5 w-full max-w-lg pointer-events-auto mb-2">
           {recentMessages.map((msg) => (
             <ChatMessageComp key={msg.id} message={msg} compact />
+          ))}
+        </div>
+      )}
+
+      {/* File chips */}
+      {attachedFiles.length > 0 && (
+        <div className="flex flex-wrap gap-1 w-full max-w-xl mb-1 pointer-events-auto">
+          {attachedFiles.map((f, i) => (
+            <div
+              key={i}
+              className="flex items-center gap-1 px-2 py-0.5 rounded"
+              style={{
+                background: 'var(--hover)',
+                border: '1px solid var(--border)',
+                fontSize: 11,
+                color: 'var(--text-muted)',
+              }}
+            >
+              <Paperclip size={9} strokeWidth={1.5} />
+              <span className="truncate" style={{ maxWidth: 120 }}>{f.name}</span>
+              <button
+                type="button"
+                onClick={() => setAttachedFiles((prev) => prev.filter((_, j) => j !== i))}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: 'var(--text-muted)',
+                  padding: 0,
+                  lineHeight: 1,
+                  fontSize: 13,
+                }}
+              >
+                ×
+              </button>
+            </div>
           ))}
         </div>
       )}
@@ -98,7 +132,7 @@ export default function ChatFloat({ messages, currentFile, onSend, disabled, flo
             marginLeft: 6,
             borderRadius: 6,
             background: 'transparent',
-            color: attachedFile ? 'var(--accent)' : 'var(--text-muted)',
+            color: attachedFiles.length > 0 ? 'var(--accent)' : 'var(--text-muted)',
             cursor: 'pointer',
           }}
           onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--hover)'; }}
@@ -112,6 +146,7 @@ export default function ChatFloat({ messages, currentFile, onSend, disabled, flo
           type="file"
           className="hidden"
           onChange={handleFileSelect}
+          multiple
           accept=".pdf,.docx,.doc,.pptx,.xlsx,.jpg,.jpeg,.png,.webp,.heic,.svg,.gif"
         />
         <textarea

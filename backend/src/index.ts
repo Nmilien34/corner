@@ -6,8 +6,12 @@ import fs from 'fs';
 import { env } from './config/env';
 import { connectDb, disconnectDb } from './config/db';
 import { errorHandler } from './middleware/errorHandler';
+import { optionalAuth } from './middleware/auth';
 import { parseRoute } from './routes/parse';
 import { executeRoute } from './routes/execute';
+import { authRoute } from './routes/auth';
+import { conversationsRoute } from './routes/conversations';
+import { orchestrateRoute } from './routes/orchestrate';
 
 const app = express();
 const TMP_DIR = path.join(__dirname, '../tmp/uploads');
@@ -21,8 +25,11 @@ app.use(express.json({ limit: '50mb' }));
 // Serve processed files directly (fallback when no DB record)
 app.use('/api/files', express.static(TMP_DIR));
 
-app.use('/api/parse', parseRoute);
-app.use('/api', executeRoute);
+app.use('/api/auth',          authRoute);
+app.use('/api/conversations', conversationsRoute);
+app.use('/api/orchestrate',   optionalAuth, orchestrateRoute);
+app.use('/api/parse',         optionalAuth, parseRoute);
+app.use('/api',               optionalAuth, executeRoute);
 
 // Centralized error handler — must be last
 app.use(errorHandler);

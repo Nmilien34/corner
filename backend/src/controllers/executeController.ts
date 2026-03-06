@@ -3,6 +3,7 @@ import { executeTool, isKnownTool } from '../services/toolService';
 import { saveFileRecord } from '../services/fileService';
 import { createError } from '../middleware/errorHandler';
 import type { ToolResult } from '@corner/shared';
+import type { WalkthroughStep } from '../types';
 
 export async function handleExecute(req: Request, res: Response, next: NextFunction): Promise<void> {
   const files = (req.files as Express.Multer.File[]) ?? [];
@@ -36,14 +37,16 @@ export async function handleExecute(req: Request, res: Response, next: NextFunct
       params:    parsedParams,
       mimeType:  result.mimeType,
       sizeBytes: result.sizeBytes,
+      userId:    req.user?.userId?.toString(),
     });
 
-    const clientResult: ToolResult = {
+    const clientResult: ToolResult & { walkthrough?: WalkthroughStep[] } = {
       fileId,
       downloadUrl: `/api/file/${fileId}`,
       fileName:    result.fileName,
       mimeType:    result.mimeType,
       sizeBytes:   result.sizeBytes,
+      walkthrough: result.walkthrough,
     };
 
     res.json(clientResult);

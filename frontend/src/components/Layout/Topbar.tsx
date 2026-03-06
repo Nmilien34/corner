@@ -1,4 +1,4 @@
-import { Share2, Download, Settings, PanelLeft, type LucideIcon } from 'lucide-react';
+import { Share2, Download, PanelLeft, type LucideIcon } from 'lucide-react';
 
 function IconBtn({ Icon }: { Icon: LucideIcon }) {
   return (
@@ -93,7 +93,6 @@ export default function Topbar({ fileName, showOpenLeftPanel, onOpenLeftPanel }:
       <div className="flex items-center gap-0">
         <IconBtn Icon={Share2} />
         <IconBtn Icon={Download} />
-        <IconBtn Icon={Settings} />
       </div>
     </header>
   );

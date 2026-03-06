@@ -266,11 +266,17 @@ export interface RightPanelSettings {
   stripMetadataDefault?: boolean;
   defaultPdfFormat?: 'pdf' | 'docx' | 'pptx';
   defaultImageFormat?: 'original' | 'jpg' | 'png' | 'webp';
+  // Export (Figma-style)
+  exportFormat?: 'pdf' | 'png' | 'jpg' | 'svg';
+  exportScale?: number;
+  exportPagesMode?: 'all' | 'current' | 'range';
+  exportPagesRange?: string;
   // Preview
   zoom?: number;
   fitToWidth?: boolean;
   showGrid?: boolean;
   previewBackground?: 'paper' | 'white' | 'gray' | 'dark';
+  previewMode?: 'page' | 'text' | 'frames';
   // Document (Word/Docs-style)
   pageSize?: 'a4' | 'letter' | 'legal' | 'tabloid';
   pageOrientation?: 'portrait' | 'landscape';
@@ -716,8 +722,8 @@ function SegmentedControl<T extends string>({
               fontFamily,
               border: '1px solid var(--border)',
               borderRadius: 6,
-              background: value === o.value ? 'var(--text-primary)' : 'var(--white)',
-              color: value === o.value ? 'var(--white)' : 'var(--text-muted)',
+              background: value === o.value ? 'var(--accent)' : 'var(--white)',
+              color: value === o.value ? 'var(--canvas)' : 'var(--text-muted)',
               cursor: 'pointer',
               transition: 'all 150ms ease',
             }}
@@ -2197,33 +2203,47 @@ function PreviewTabContent({
   settings: RightPanelSettings;
   onSettingsChange: (p: Partial<RightPanelSettings>) => void;
 }) {
-  if (!result) {
-    return (
-      <p style={{ fontSize: 11, color: 'var(--text-muted)', padding: 12, fontFamily }}>
-        Load a file to access preview controls.
-      </p>
-    );
-  }
+  const hasResult = !!result;
   const zoomOptions = [50, 75, 100, 150, 200];
   const zoom = settings.zoom ?? 100;
-  const isPdf = result.mimeType === 'application/pdf';
+  const isPdf = hasResult && result!.mimeType === 'application/pdf';
+  const previewMode = settings.previewMode ?? (isPdf ? 'page' : 'frames');
   return (
     <div style={{ padding: '12px' }}>
+      <SectionLabel>View</SectionLabel>
+      <SegmentedControl
+        label=""
+        value={previewMode}
+        onChange={(v) => onSettingsChange({ previewMode: v as RightPanelSettings['previewMode'] })}
+        options={[
+          ...(isPdf
+            ? [
+                { value: 'page', label: 'Pages' },
+                { value: 'text', label: 'Text' },
+              ]
+            : []),
+          { value: 'frames', label: 'All docs' },
+        ]}
+      />
+      <Divider />
       <SectionLabel>Zoom</SectionLabel>
       <div style={{ display: 'flex', gap: 2, flexWrap: 'wrap', marginBottom: 8 }}>
         {zoomOptions.map((z) => (
           <button
             key={z}
             type="button"
-            onClick={() => { onZoomChange?.(z); onSettingsChange({ zoom: z }); }}
+            onClick={() => {
+              onZoomChange?.(z);
+              onSettingsChange({ zoom: z });
+            }}
             style={{
               padding: '4px 8px',
               fontSize: 11,
               fontFamily,
               border: '1px solid var(--border)',
               borderRadius: 6,
-              background: zoom === z ? 'var(--text-primary)' : 'var(--white)',
-              color: zoom === z ? 'var(--white)' : 'var(--text-muted)',
+              background: zoom === z ? 'var(--accent)' : 'var(--white)',
+              color: zoom === z ? 'var(--canvas)' : 'var(--text-muted)',
               cursor: 'pointer',
               transition: 'all 150ms ease',
             }}
@@ -2232,9 +2252,17 @@ function PreviewTabContent({
           </button>
         ))}
       </div>
-      <Toggle label="Fit to width" value={settings.fitToWidth ?? false} onChange={(v) => onSettingsChange({ fitToWidth: v })} />
-      <Toggle label="Show grid" value={settings.showGrid ?? false} onChange={(v) => onSettingsChange({ showGrid: v })} />
-      {isPdf && totalPages > 0 && (
+      <Toggle
+        label="Fit to width"
+        value={settings.fitToWidth ?? false}
+        onChange={(v) => onSettingsChange({ fitToWidth: v })}
+      />
+      <Toggle
+        label="Show grid"
+        value={settings.showGrid ?? false}
+        onChange={(v) => onSettingsChange({ showGrid: v })}
+      />
+      {isPdf && totalPages > 0 && hasResult && (
         <>
           <Divider />
           <SectionLabel>Page</SectionLabel>
@@ -2303,13 +2331,92 @@ function PreviewTabContent({
 function MoreTabContent({
   settings,
   onSettingsChange,
+  result,
 }: {
   settings: RightPanelSettings;
   onSettingsChange: (p: Partial<RightPanelSettings>) => void;
+  result: ToolResult | null;
 }) {
   const watermarkEnabled = settings.watermarkEnabled ?? false;
   return (
     <div style={{ padding: '12px' }}>
+      <SectionLabel>Export</SectionLabel>
+      <Select
+        label="Format"
+        value={settings.exportFormat ?? 'pdf'}
+        onChange={(v) =>
+          onSettingsChange({
+            exportFormat: v as RightPanelSettings['exportFormat'],
+          })
+        }
+        options={[
+          { value: 'pdf', label: 'PDF' },
+          { value: 'png', label: 'PNG' },
+          { value: 'jpg', label: 'JPG' },
+          { value: 'svg', label: 'SVG' },
+        ]}
+      />
+      <Slider
+        label="Scale"
+        value={settings.exportScale ?? 1}
+        min={0.5}
+        max={3}
+        step={0.5}
+        onChange={(v) => onSettingsChange({ exportScale: v })}
+        formatValue={(v) => `${v.toFixed(1)}x`}
+      />
+      <Select
+        label="Pages"
+        value={settings.exportPagesMode ?? 'all'}
+        onChange={(v) =>
+          onSettingsChange({
+            exportPagesMode: v as RightPanelSettings['exportPagesMode'],
+          })
+        }
+        options={[
+          { value: 'all', label: 'All pages' },
+          { value: 'current', label: 'Current page' },
+          { value: 'range', label: 'Page range' },
+        ]}
+      />
+      {settings.exportPagesMode === 'range' && (
+        <TextInput
+          label="Page range"
+          value={settings.exportPagesRange ?? ''}
+          placeholder="e.g. 1–3, 5"
+          onChange={(v) => onSettingsChange({ exportPagesRange: v })}
+        />
+      )}
+      <div style={{ marginTop: 8, display: 'flex', justifyContent: 'flex-end' }}>
+        <button
+          type="button"
+          disabled={!result}
+          onClick={() => {
+            if (!result) return;
+            // For now, export triggers a direct download of the current result.
+            const a = document.createElement('a');
+            a.href = result.downloadUrl;
+            a.download = result.fileName;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+          }}
+          style={{
+            padding: '6px 10px',
+            borderRadius: 6,
+            border: 'none',
+            fontSize: 12,
+            fontFamily: 'Geist, sans-serif',
+            cursor: result ? 'pointer' : 'default',
+            background: result ? 'var(--text-primary)' : 'var(--border)',
+            color: result ? 'var(--canvas)' : 'var(--text-muted)',
+            transition: 'opacity 150ms ease',
+          }}
+        >
+          Export
+        </button>
+      </div>
+      <Divider />
       <SectionLabel>Watermark</SectionLabel>
       <Toggle label="Enable watermark" sublabel="Applied to all outputs" value={watermarkEnabled} onChange={(v) => onSettingsChange({ watermarkEnabled: v })} />
       {watermarkEnabled && (
@@ -2585,7 +2692,13 @@ export default function RightPanel({
             onSettingsChange={onSettingsChange}
           />
         )}
-        {activeTab === 'more' && <MoreTabContent settings={settings} onSettingsChange={onSettingsChange} />}
+        {activeTab === 'more' && (
+          <MoreTabContent
+            settings={settings}
+            onSettingsChange={onSettingsChange}
+            result={result}
+          />
+        )}
       </div>
     </aside>
   );
