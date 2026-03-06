@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import type { SavedSignature } from '../../types';
 import SignatureCapture from './SignatureCapture';
 
-type Step = 'welcome' | 'signature' | 'done';
+type Step = 'welcome' | 'signature' | 'signature_review' | 'done';
 
 interface Props {
   onComplete: () => void;
@@ -10,6 +10,8 @@ interface Props {
 
 export default function OnboardingModal({ onComplete }: Props) {
   const [step, setStep] = useState<Step>('welcome');
+  const [pendingSignature, setPendingSignature] = useState<SavedSignature | null>(null);
+  const [countdown, setCountdown] = useState(3);
 
   // Auto-close after "done" step
   useEffect(() => {
@@ -20,6 +22,20 @@ export default function OnboardingModal({ onComplete }: Props) {
     }, 1500);
     return () => clearTimeout(t);
   }, [step, onComplete]);
+
+  // 3-second countdown when entering signature_review
+  useEffect(() => {
+    if (step !== 'signature_review' || countdown < 0) return;
+    if (countdown === 0) return; // stay at 0, don't go negative
+    const t = setInterval(() => setCountdown((c) => c - 1), 1000);
+    return () => clearInterval(t);
+  }, [step, countdown]);
+
+  const handleNextFromSignature = (sig: SavedSignature) => {
+    setPendingSignature(sig);
+    setCountdown(3);
+    setStep('signature_review');
+  };
 
   const handleSignatureSave = (sig: SavedSignature) => {
     localStorage.setItem('corner:signature', JSON.stringify(sig));
@@ -95,11 +111,11 @@ export default function OnboardingModal({ onComplete }: Props) {
                 Save your signature
               </h2>
               <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: 4 }}>
-                We'll use this automatically whenever you need to sign something.
+                We'll use this automatically whenever you need to sign something. You can draw, type, or upload an image of your signature.
               </p>
             </div>
 
-            <SignatureCapture onSave={handleSignatureSave} />
+            <SignatureCapture onNext={handleNextFromSignature} />
 
             <button
               onClick={handleSkip}
@@ -116,6 +132,87 @@ export default function OnboardingModal({ onComplete }: Props) {
             >
               Skip for now
             </button>
+          </div>
+        )}
+
+        {step === 'signature_review' && pendingSignature && (
+          <div className="flex flex-col gap-6">
+            {countdown > 0 ? (
+              <>
+                <p style={{ fontSize: '14px', color: 'var(--text-primary)', textAlign: 'center', lineHeight: 1.5 }}>
+                  Your signature is something that's very important — take a moment to breathe.
+                </p>
+                <div style={{ textAlign: 'center' }}>
+                  <span
+                    style={{
+                      fontSize: '32px',
+                      fontWeight: 600,
+                      color: 'var(--accent)',
+                      fontFamily: 'Geist, sans-serif',
+                    }}
+                  >
+                    {countdown}
+                  </span>
+                </div>
+              </>
+            ) : (
+              <>
+                <p style={{ fontSize: '14px', color: 'var(--text-primary)', textAlign: 'center' }}>
+                  Here's your signature. Do you want to edit it?
+                </p>
+                <div
+                  style={{
+                    padding: 16,
+                    background: 'var(--white)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 8,
+                    display: 'flex',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    minHeight: 80,
+                  }}
+                >
+                  <img
+                    src={pendingSignature.dataUrl}
+                    alt="Your signature"
+                    style={{ maxHeight: 60, maxWidth: '100%', objectFit: 'contain' }}
+                  />
+                </div>
+                <div className="flex gap-3 justify-center">
+                  <button
+                    onClick={() => {
+                      setStep('signature');
+                      setPendingSignature(null);
+                    }}
+                    className="px-4 py-2.5 rounded-lg"
+                    style={{
+                      background: 'none',
+                      color: 'var(--text-primary)',
+                      border: '1px solid var(--border)',
+                      fontSize: '13px',
+                      cursor: 'pointer',
+                      fontFamily: 'Geist, sans-serif',
+                    }}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => handleSignatureSave(pendingSignature)}
+                    className="px-4 py-2.5 rounded-lg"
+                    style={{
+                      background: 'var(--text-primary)',
+                      color: 'var(--canvas)',
+                      border: 'none',
+                      fontSize: '13px',
+                      cursor: 'pointer',
+                      fontFamily: 'Geist, sans-serif',
+                    }}
+                  >
+                    Looks good, continue
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         )}
 

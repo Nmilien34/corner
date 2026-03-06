@@ -2,11 +2,12 @@ import { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import axios from 'axios';
 import Topbar from './components/Layout/Topbar';
-import LeftPanel from './components/Layout/LeftPanel';
-import RightPanel from './components/Layout/RightPanel';
+import LeftPanel, { type VersionNode as LeftPanelVersionNode } from './components/Layout/LeftPanel';
+import RightPanel, { type RightPanelSettings } from './components/Layout/RightPanel';
 import EmptyState from './components/Canvas/EmptyState';
 import ChatFloat from './components/Chat/ChatFloat';
 import DocumentViewer from './components/Canvas/DocumentViewer';
+import DocCanvas from './components/Canvas/DocCanvas';
 import ESignCanvas from './components/Canvas/ESignCanvas';
 import OnboardingModal from './components/Onboarding/OnboardingModal';
 import { useIntent } from './hooks/useIntent';
@@ -19,6 +20,7 @@ import type {
   ProcessingState,
   SignatureField,
   VersionNode,
+  ToolName,
 } from './types';
 
 export default function App() {
@@ -27,17 +29,23 @@ export default function App() {
   const [currentResult, setCurrentResult] = useState<ToolResult | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [processing, setProcessing] = useState<ProcessingState | null>(null);
-  const [rightOpen, setRightOpen] = useState(false);
+  const [rightOpen, setRightOpen] = useState(false); // default collapsed; opposite of left panel
+  const [panelSettings, setPanelSettings] = useState<RightPanelSettings>({});
+  const [lastTool, setLastTool] = useState<ToolName | null>(null);
   const [showOnboarding] = useState(
     () => !localStorage.getItem('corner:onboarding-complete')
   );
   const [onboardingVisible, setOnboardingVisible] = useState(showOnboarding);
+  const [inputFocused, setInputFocused] = useState(false);
+  const [leftPanelOpen, setLeftPanelOpen] = useState(true); // default expanded; user can collapse
+  const [activeNav, setActiveNav] = useState<'recent' | 'starred' | 'trash'>('recent');
+  const [canvasViewMode, setCanvasViewMode] = useState(true); // true = canvas with all frames, false = single doc view
 
   // E-sign interactive state
   const [esignFields, setEsignFields] = useState<SignatureField[]>([]);
   const [esignPdfUrl, setEsignPdfUrl] = useState('');
 
-  const { nodes, addNode } = useVersionHistory();
+  const { nodes, addNode, clearHistory } = useVersionHistory();
 
   const handleEsignInteractive = useCallback(
     (_parsed: ParsedIntent, file: File | undefined) => {
@@ -65,13 +73,15 @@ export default function App() {
   );
 
   // Intent hook wires parse → execute → result
-  const { execute: executeIntent } = useIntent({
+  const { execute: executeIntent, rerunWithSettings } = useIntent({
     onProcessingChange: setProcessing,
-    onResult: (result) => {
+    onResult: (result, tool) => {
       setCurrentResult(result);
+      setLastTool(tool);
       setMode('result');
       setRightOpen(true);
       addNode(result.fileName, undefined, result.downloadUrl);
+      setCanvasViewMode(true); // show canvas with all docs when new result arrives
     },
     onMessages: setMessages,
     onClarify: () => setMode('clarifying'),
@@ -132,6 +142,25 @@ export default function App() {
     setMode('result');
   }, []);
 
+  function inferFileType(node: VersionNode): LeftPanelVersionNode['fileType'] {
+    const s = (node.downloadUrl ?? node.label ?? '').toLowerCase();
+    if (s.endsWith('.pdf')) return 'pdf';
+    if (/\.(png|jpe?g|gif|webp|bmp)$/.test(s)) return 'image';
+    if (/\.(docx?|doc)$/.test(s)) return 'word';
+    return 'other';
+  }
+
+  const versionHistoryForPanel: LeftPanelVersionNode[] = nodes.map((n) => ({
+    id: n.id,
+    fileName: n.label,
+    fileType: inferFileType(n),
+    operation: 'Processed',
+    timestamp: n.timestamp,
+    isActive: n.isCurrent,
+  }));
+
+  const activeNodeId = nodes.find((n) => n.isCurrent)?.id ?? null;
+
   const handleESignConfirm = useCallback(
     async (placedFields: SignatureField[]) => {
       if (!currentFile) return;
@@ -165,6 +194,7 @@ export default function App() {
         URL.revokeObjectURL(esignPdfUrl);
         setEsignPdfUrl('');
         setCurrentResult(res.data);
+        setLastTool('esign');
         setMode('result');
         addNode(res.data.fileName, undefined, res.data.downloadUrl);
       } catch (err) {
@@ -218,15 +248,42 @@ export default function App() {
         </div>
       )}
 
-      <Topbar fileName={currentResult?.fileName} />
+      {/* Top bar only over left + canvas so right panel collapse is never hidden */}
+      <div className="flex flex-1 min-h-0 overflow-hidden">
+        <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+          <Topbar
+            fileName={currentResult?.fileName}
+            showOpenLeftPanel={!leftPanelOpen}
+            onOpenLeftPanel={() => setLeftPanelOpen(true)}
+          />
+          <div className="flex flex-1 min-h-0 overflow-hidden">
+            <LeftPanel
+              isOpen={leftPanelOpen}
+              history={versionHistoryForPanel}
+              user={null}
+              activeNodeId={activeNodeId}
+              onRestoreVersion={(id) => {
+                const v = nodes.find((n) => n.id === id);
+                if (v) handleVersionRestore(v);
+              }}
+              onClearHistory={() => {
+                clearHistory();
+                console.log('Clear history');
+              }}
+              onSignIn={() => console.log('Sign in')}
+              onSignOut={() => console.log('Sign out')}
+              onOpenSettings={() => console.log('Open settings')}
+              onNavSelect={(item) => {
+                setActiveNav(item);
+                console.log('Nav select', item);
+              }}
+              activeNav={activeNav}
+              onToggle={() => setLeftPanelOpen((p) => !p)}
+            />
 
-      <div className="flex flex-1 overflow-hidden">
-        <LeftPanel versions={nodes} onVersionRestore={handleVersionRestore} />
-
-        {/* Canvas */}
-        <main
-          className="flex-1 flex flex-col relative overflow-hidden"
-          style={{ background: 'var(--canvas)' }}
+            {/* Canvas — surface first, content on top */}
+            <main
+          className="flex-1 flex flex-col relative overflow-hidden canvas-surface"
         >
           {/* Thin progress line at top */}
           {processing && (
@@ -262,33 +319,76 @@ export default function App() {
             </div>
           )}
 
-          {/* Canvas content */}
-          <div className="flex-1 flex items-center justify-center overflow-hidden">
-            {(mode === 'empty' || mode === 'clarifying') && !processing && (
-              <EmptyState onAction={handleSend} />
+          {/* Canvas content — centered for empty/processing/doc; full-bleed only for multi-doc canvas */}
+          <div className="flex-1 flex items-center justify-center overflow-hidden p-6 relative">
+            {/* Figma-style canvas: full-bleed when showing all docs */}
+            {mode === 'result' && nodes.length > 0 && canvasViewMode && (
+              <div className="absolute inset-0 p-6">
+                <DocCanvas
+                  nodes={nodes.map((n) => ({ id: n.id, label: n.label, downloadUrl: n.downloadUrl }))}
+                  selectedId={currentResult?.fileId ?? nodes.find((n) => n.isCurrent)?.id ?? null}
+                  onSelectFrame={(id) => {
+                    const v = nodes.find((n) => n.id === id);
+                    if (v) {
+                      handleVersionRestore(v);
+                      setCanvasViewMode(false);
+                    }
+                  }}
+                />
+              </div>
             )}
 
-            {mode === 'processing' && processing && !processing.stepTotal && (
-              <p style={{ color: 'var(--text-muted)', fontSize: '13px' }}>
-                {processing.label}
-              </p>
-            )}
+            {/* Centered: empty state, processing, single doc, esign */}
+            {!(mode === 'result' && nodes.length > 0 && canvasViewMode) && (
+              <>
+                {(mode === 'empty' || mode === 'clarifying') && !processing && (
+                  <EmptyState onAction={handleSend} />
+                )}
 
-            {mode === 'result' && currentResult && (
-              <DocumentViewer result={currentResult} onUndo={handleUndo} />
-            )}
+                {mode === 'processing' && processing && !processing.stepTotal && (
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="canvas-spinner" />
+                    <p style={{ color: 'var(--text-muted)', fontSize: '12px' }}>{processing.label}</p>
+                  </div>
+                )}
 
-            {mode === 'esign' && esignPdfUrl && (
-              <ESignCanvas
-                pdfUrl={esignPdfUrl}
-                detectedFields={esignFields}
-                onConfirm={handleESignConfirm}
-                onCancel={() => {
-                  URL.revokeObjectURL(esignPdfUrl);
-                  setEsignPdfUrl('');
-                  setMode(currentResult ? 'result' : 'empty');
-                }}
-              />
+                {mode === 'result' && currentResult && (
+                  <div className="flex flex-col items-center w-full max-w-4xl">
+                    {nodes.length >= 1 && (
+                      <button
+                        type="button"
+                        onClick={() => setCanvasViewMode(true)}
+                        style={{
+                          alignSelf: 'flex-start',
+                          marginBottom: 8,
+                          padding: '4px 8px',
+                          fontSize: 12,
+                          color: 'var(--text-muted)',
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        ← All documents
+                      </button>
+                    )}
+                    <DocumentViewer result={currentResult} onUndo={handleUndo} />
+                  </div>
+                )}
+
+                {mode === 'esign' && esignPdfUrl && (
+                  <ESignCanvas
+                    pdfUrl={esignPdfUrl}
+                    detectedFields={esignFields}
+                    onConfirm={handleESignConfirm}
+                    onCancel={() => {
+                      URL.revokeObjectURL(esignPdfUrl);
+                      setEsignPdfUrl('');
+                      setMode(currentResult ? 'result' : 'empty');
+                    }}
+                  />
+                )}
+              </>
             )}
           </div>
 
@@ -297,13 +397,30 @@ export default function App() {
             currentFile={currentFile}
             onSend={handleSend}
             disabled={mode === 'processing'}
+            floatUp={(mode === 'empty' || mode === 'clarifying') && inputFocused}
+            onFocus={() => setInputFocused(true)}
+            onBlur={() => setInputFocused(false)}
           />
         </main>
+          </div>
+        </div>
 
         <RightPanel
           isOpen={rightOpen}
           result={currentResult}
+          lastTool={lastTool}
           onToggle={() => setRightOpen((p) => !p)}
+          onToolSelect={(tool, settings) => {
+            setMode('processing');
+            const prompt = settings && Object.keys(settings).length > 0
+              ? `use the ${tool} tool with settings: ${JSON.stringify(settings)}`
+              : `use the ${tool} tool`;
+            executeIntent(prompt, currentFile ?? undefined);
+          }}
+          onOpenOnboarding={() => setOnboardingVisible(true)}
+          onSaveTemplate={() => console.log('Save template')}
+          settings={panelSettings}
+          onSettingsChange={(patch) => setPanelSettings((prev) => ({ ...prev, ...patch }))}
         />
       </div>
 

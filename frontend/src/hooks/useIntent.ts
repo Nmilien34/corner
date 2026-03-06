@@ -1,10 +1,12 @@
 import { useCallback } from 'react';
 import axios from 'axios';
-import type { ParsedIntent, ToolResult, ProcessingState, ChatMessage } from '../types';
+import type { ParsedIntent, ToolResult, ProcessingState, ChatMessage, ToolName } from '../types';
+import type { RightPanelSettings } from '../components/Layout/RightPanel';
+import { settingsToToolParams } from '../lib/settingsToToolParams';
 
 interface Options {
   onProcessingChange: (state: ProcessingState | null) => void;
-  onResult: (result: ToolResult) => void;
+  onResult: (result: ToolResult, tool: ToolName) => void;
   onMessages: (updater: (prev: ChatMessage[]) => ChatMessage[]) => void;
   onClarify: (question: string) => void;
   onEsignInteractive: (parsed: ParsedIntent, file: File | undefined) => void;
@@ -122,7 +124,7 @@ export function useIntent({ onProcessingChange, onResult, onMessages, onClarify,
         await new Promise((r) => setTimeout(r, 300));
         onProcessingChange(null);
 
-        if (lastResult) onResult(lastResult);
+        if (lastResult) onResult(lastResult, steps[steps.length - 1].tool as ToolName);
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Something went wrong';
         addMessage(onMessages, 'corner', `Error: ${msg}`);
@@ -132,5 +134,24 @@ export function useIntent({ onProcessingChange, onResult, onMessages, onClarify,
     [onProcessingChange, onResult, onMessages, onClarify, onEsignInteractive]
   );
 
-  return { execute };
+  const rerunWithSettings = useCallback(
+    async (tool: ToolName, file: File, settings: RightPanelSettings) => {
+      try {
+        onProcessingChange({ progress: 0, label: 'Re-running...' });
+        const params = settingsToToolParams(tool, settings);
+        const result = await runTool(tool, [file], params);
+        onProcessingChange({ progress: 100, label: 'Done' });
+        await new Promise((r) => setTimeout(r, 200));
+        onProcessingChange(null);
+        onResult(result, tool);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Re-run failed';
+        addMessage(onMessages, 'corner', `Error: ${msg}`);
+        onProcessingChange(null);
+      }
+    },
+    [onProcessingChange, onResult, onMessages]
+  );
+
+  return { execute, rerunWithSettings };
 }

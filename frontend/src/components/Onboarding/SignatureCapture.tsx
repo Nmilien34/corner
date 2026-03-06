@@ -123,17 +123,17 @@ function TypePad({ onCapture }: { onCapture: (dataUrl: string) => void }) {
 }
 
 interface Props {
-  onSave: (sig: SavedSignature) => void;
+  onNext: (sig: SavedSignature) => void;
 }
 
-export default function SignatureCapture({ onSave }: Props) {
+export default function SignatureCapture({ onNext }: Props) {
   const [method, setMethod] = useState<Method>('draw');
   const [sigDataUrl, setSigDataUrl] = useState('');
   const [initDataUrl, setInitDataUrl] = useState('');
 
-  const handleSave = () => {
+  const handleNext = () => {
     if (!sigDataUrl) return;
-    onSave({
+    onNext({
       dataUrl: sigDataUrl,
       initialsDataUrl: initDataUrl || sigDataUrl,
       method,
@@ -195,7 +195,7 @@ export default function SignatureCapture({ onSave }: Props) {
       </div>
 
       <button
-        onClick={handleSave}
+        onClick={handleNext}
         disabled={!sigDataUrl}
         className="self-end px-5 py-2.5 rounded-lg"
         style={{
@@ -208,7 +208,7 @@ export default function SignatureCapture({ onSave }: Props) {
           transition: '150ms ease',
         }}
       >
-        Save signature
+        Next
       </button>
     </div>
   );

@@ -67,15 +67,15 @@ export default function DocumentViewer({ result, onUndo }: Props) {
   }, [result.downloadUrl, currentPage, isPdf]);
 
   return (
-    <div className="flex flex-col items-center gap-4 p-6 w-full h-full overflow-auto">
-      {/* Document card */}
+    <div className="flex flex-col items-center gap-4 w-full h-full overflow-auto">
+      {/* Document sheet — canvas feel: sits on the surface with soft shadow */}
       <div
-        className="rounded-xl overflow-hidden w-full"
+        className="rounded-lg overflow-hidden w-full flex-shrink-0"
         style={{
           background: 'var(--white)',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+          boxShadow: 'var(--canvas-sheet-shadow)',
           border: '1px solid var(--border)',
-          maxWidth: 680,
+          maxWidth: 720,
         }}
       >
         {isPdf && <canvas ref={canvasRef} className="w-full block" />}

@@ -1,8 +1,15 @@
 export type ToolName =
-  | 'pdf_to_word' | 'word_to_pdf'
-  | 'compress_pdf' | 'merge_pdf' | 'split_pdf'
+  | 'pdf_to_word' | 'pdf_to_powerpoint' | 'pdf_to_excel' | 'word_to_pdf'
+  | 'compress_pdf' | 'merge_pdf' | 'split_pdf' | 'rotate_pdf' | 'crop_pdf' | 'repair_pdf'
+  | 'ocr' | 'add_page_numbers' | 'redact_pdf'
+  | 'page_setup' | 'document_properties' | 'headers_footers' | 'typography_defaults' | 'export_options'
   | 'compress_image' | 'convert_image' | 'remove_background' | 'resize_image'
-  | 'ocr' | 'generate_qr' | 'esign'
+  | 'crop_image' | 'flip_rotate_image' | 'add_border' | 'upscale_image' | 'image_to_pdf' | 'watermark_image'
+  | 'esign' | 'request_signatures' | 'place_fields' | 'bulk_send' | 'in_person_signing' | 'templates'
+  | 'identity_verification' | 'audit_trail' | 'certificate_of_completion' | 'tamper_detection'
+  | 'fill_pdf_form' | 'annotate_pdf' | 'add_signature_line' | 'stamp_document' | 'decline_void'
+  | 'generate_qr' | 'barcode' | 'invoice_pdf' | 'certificate_pdf'
+  | 'password_protect' | 'remove_password' | 'redact_content' | 'add_watermark'
 
 export type ExecutionMode = 'silent' | 'interactive'
 export type VersionStatus = 'processing' | 'complete' | 'error'

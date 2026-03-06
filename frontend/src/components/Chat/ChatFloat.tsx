@@ -8,16 +8,19 @@ interface Props {
   currentFile: File | null;
   onSend: (text: string, file?: File) => void;
   disabled?: boolean;
+  /** When true, input floats up below the drop zone (empty state) */
+  floatUp?: boolean;
+  onFocus?: () => void;
+  onBlur?: () => void;
 }
 
-export default function ChatFloat({ messages, currentFile, onSend, disabled }: Props) {
+export default function ChatFloat({ messages, currentFile, onSend, disabled, floatUp, onFocus, onBlur }: Props) {
   const [text, setText] = useState('');
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const recentMessages = messages.slice(-6);
-  const isExpanded = !!(text.trim() || attachedFile);
+  const recentMessages = messages.slice(-3);
   const canSend = !!(text.trim() || attachedFile || currentFile) && !disabled;
 
   const handleSend = () => {
@@ -26,7 +29,7 @@ export default function ChatFloat({ messages, currentFile, onSend, disabled }: P
     setText('');
     setAttachedFile(null);
     if (textareaRef.current) {
-      textareaRef.current.style.height = '44px';
+      textareaRef.current.style.height = 'auto';
     }
   };
 
@@ -40,7 +43,7 @@ export default function ChatFloat({ messages, currentFile, onSend, disabled }: P
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setText(e.target.value);
     const ta = e.target;
-    ta.style.height = '44px';
+    ta.style.height = 'auto';
     ta.style.height = `${Math.min(ta.scrollHeight, 120)}px`;
   };
 
@@ -58,44 +61,48 @@ export default function ChatFloat({ messages, currentFile, onSend, disabled }: P
 
   return (
     <div
-      className="absolute bottom-8 left-0 right-0 flex flex-col items-center gap-3 px-8 pointer-events-none"
-      style={{ zIndex: 10 }}
+      className="absolute left-0 right-0 flex flex-col items-center pointer-events-none"
+      style={{
+        zIndex: 10,
+        padding: '12px 16px 20px',
+        bottom: floatUp ? '22%' : 0,
+        transition: 'bottom 420ms ease',
+      }}
     >
-      {/* Recent messages */}
+      {/* Slim message strip — canvas-style: last 3 only */}
       {recentMessages.length > 0 && (
-        <div className="flex flex-col gap-2 w-full max-w-xl pointer-events-auto">
+        <div className="flex flex-col gap-1.5 w-full max-w-lg pointer-events-auto mb-2">
           {recentMessages.map((msg) => (
-            <ChatMessageComp key={msg.id} message={msg} />
+            <ChatMessageComp key={msg.id} message={msg} compact />
           ))}
         </div>
       )}
 
-      {/* Input row */}
+      {/* Input bar — toolbar feel; stronger shadow when floated */}
       <div
-        className="flex items-end gap-2 w-full max-w-xl px-3 py-2 pointer-events-auto"
+        className="flex items-center gap-1 pointer-events-auto w-full max-w-xl rounded-lg"
         style={{
           background: 'var(--white)',
           border: '1px solid var(--border)',
-          boxShadow: 'var(--shadow-realistic)',
-          borderRadius: isExpanded ? 14 : 9999,
-          transition: 'border-radius 200ms ease-out',
+          boxShadow: floatUp ? 'var(--shadow-realistic)' : 'var(--shadow-sm)',
+          minHeight: 40,
+          transition: 'box-shadow 420ms ease',
         }}
       >
-        {/* File attach button */}
         <button
           onClick={() => fileInputRef.current?.click()}
-          className="shrink-0 flex items-center justify-center mb-1 transition-all duration-200 ease-out"
+          className="shrink-0 flex items-center justify-center transition-colors duration-150"
           style={{
-            width: 36,
-            height: 36,
-            borderRadius: 9999,
-            background: 'none',
-            border: '1px solid var(--border)',
+            width: 32,
+            height: 32,
+            marginLeft: 6,
+            borderRadius: 6,
+            background: 'transparent',
             color: attachedFile ? 'var(--accent)' : 'var(--text-muted)',
             cursor: 'pointer',
           }}
-          onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--hover)'; e.currentTarget.style.borderColor = 'transparent'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; e.currentTarget.style.borderColor = 'var(--border)'; }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--hover)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
           title="Attach file"
         >
           <Paperclip size={14} strokeWidth={1.5} />
@@ -107,44 +114,43 @@ export default function ChatFloat({ messages, currentFile, onSend, disabled }: P
           onChange={handleFileSelect}
           accept=".pdf,.docx,.doc,.pptx,.xlsx,.jpg,.jpeg,.png,.webp,.heic,.svg,.gif"
         />
-
-        {/* Textarea */}
         <textarea
           ref={textareaRef}
           value={text}
           onChange={handleTextChange}
           onKeyDown={handleKeyDown}
+          onFocus={onFocus}
+          onBlur={onBlur}
           disabled={disabled}
           placeholder={placeholder}
           rows={1}
-          className="flex-1 resize-none bg-transparent outline-none"
+          className="flex-1 resize-none bg-transparent outline-none py-2 px-2"
           style={{
             fontFamily: 'Geist, sans-serif',
-            fontSize: '13px',
+            fontSize: 13,
             color: 'var(--text-primary)',
-            height: '44px',
-            maxHeight: '120px',
-            lineHeight: 1.6,
-            paddingTop: '10px',
+            minHeight: 24,
+            maxHeight: 100,
+            lineHeight: 1.3,
             border: 'none',
+            caretColor: 'var(--accent)',
           }}
         />
-
-        {/* Send button */}
         <button
           onClick={handleSend}
           disabled={!canSend}
-          className="shrink-0 flex items-center justify-center mb-1"
+          className="shrink-0 flex items-center justify-center transition-opacity duration-150"
           style={{
-            width: 36,
-            height: 36,
-            borderRadius: 9999,
-            background: canSend ? 'var(--text-primary)' : 'none',
-            border: canSend ? 'none' : '1px solid var(--border)',
+            width: 32,
+            height: 32,
+            marginRight: 6,
+            borderRadius: 6,
+            background: canSend ? 'var(--accent)' : 'transparent',
             color: canSend ? 'var(--white)' : 'var(--text-muted)',
             cursor: canSend ? 'pointer' : 'default',
-            transition: 'all 200ms ease-out',
           }}
+          onMouseEnter={(e) => { canSend && (e.currentTarget.style.opacity = '0.88'); }}
+          onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
         >
           <ArrowUp size={14} strokeWidth={2} />
         </button>
