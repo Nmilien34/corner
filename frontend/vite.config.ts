@@ -13,10 +13,22 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
+      // SSE endpoint — must not buffer; disable encoding so the stream passes through
+      '/api/orchestrate': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+        // Prevent Vite from buffering the SSE stream
+        configure: (proxy) => {
+          proxy.on('proxyReq', (_proxyReq, req) => {
+            // Remove accept-encoding so the upstream sends plain text (no gzip buffering)
+            req.headers['accept-encoding'] = 'identity';
+          });
+        },
+      },
       '/api': {
         target: 'http://localhost:3001',
         changeOrigin: true,
-      }
+      },
     }
   }
 })

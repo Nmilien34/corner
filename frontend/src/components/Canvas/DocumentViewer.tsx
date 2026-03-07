@@ -14,6 +14,8 @@ interface Props {
   walkthroughStep?: WalkthroughStep | null;
   previewMode?: 'page' | 'text' | 'frames';
   zoomPercent?: number;
+  /** Called when PDF loads with page count (for toolbar in split view) */
+  onTotalPages?: (n: number) => void;
 }
 
 export default function DocumentViewer({
@@ -22,6 +24,7 @@ export default function DocumentViewer({
   walkthroughStep,
   previewMode = 'page',
   zoomPercent = 100,
+  onTotalPages,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -59,7 +62,9 @@ export default function DocumentViewer({
       try {
         const pdf = await pdfjsLib.getDocument(result.downloadUrl).promise;
         if (cancelled) return;
-        setTotalPages(pdf.numPages);
+        const numPages = pdf.numPages;
+        setTotalPages(numPages);
+        onTotalPages?.(numPages);
         const page = await pdf.getPage(currentPage);
         if (cancelled) return;
 

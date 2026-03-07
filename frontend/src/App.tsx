@@ -8,7 +8,10 @@ import LeftPanel, {
 } from './components/Layout/LeftPanel';
 import RightPanel, { type RightPanelSettings } from './components/Layout/RightPanel';
 import EmptyState from './components/Canvas/EmptyState';
+import OrchestratorLoadingAnimation from './components/Canvas/OrchestratorLoadingAnimation';
+import DocumentColumn from './components/Canvas/DocumentColumn';
 import ChatFloat from './components/Chat/ChatFloat';
+import ChatThreadColumn from './components/Chat/ChatThreadColumn';
 import DocumentViewer from './components/Canvas/DocumentViewer';
 import DocCanvas from './components/Canvas/DocCanvas';
 import ESignCanvas from './components/Canvas/ESignCanvas';
@@ -17,6 +20,8 @@ import SettingsModal from './components/Layout/SettingsModal';
 import OnboardingModal from './components/Onboarding/OnboardingModal';
 import { useIntent } from './hooks/useIntent';
 import { useVersionHistory } from './hooks/useVersionHistory';
+import { Toaster } from './components/ui/toaster';
+import { toast } from './hooks/use-toast';
 import type {
   AppMode,
   ChatMessage,
@@ -46,6 +51,8 @@ export default function App() {
   const [leftPanelOpen, setLeftPanelOpen] = useState(true); // default expanded; user can collapse
   const [activeNav, setActiveNav] = useState<'recent' | 'starred' | 'trash'>('recent');
   const [canvasViewMode, setCanvasViewMode] = useState(true); // true = canvas with all frames, false = single doc view
+  const [focusedDocumentView, setFocusedDocumentView] = useState(false); // true = full-width doc (State 3), no chat column
+  const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null); // object URL for currentFile preview in split
   const [user, setUser] = useState<LeftPanelUser | null>(null);
   const [walkthroughSteps, setWalkthroughSteps] = useState<WalkthroughStep[] | null>(null);
   const [walkthroughActive, setWalkthroughActive] = useState(false);
@@ -57,6 +64,22 @@ export default function App() {
   const [esignPdfUrl, setEsignPdfUrl] = useState('');
 
   const { nodes, addNode, clearHistory } = useVersionHistory();
+
+  // Object URL for currentFile so left column can preview before processing
+  useEffect(() => {
+    if (!currentFile) {
+      if (filePreviewUrl) {
+        URL.revokeObjectURL(filePreviewUrl);
+        setFilePreviewUrl(null);
+      }
+      return;
+    }
+    const url = URL.createObjectURL(currentFile);
+    setFilePreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [currentFile]);
+
+  const showSplit = !!(currentFile || currentResult) && !focusedDocumentView;
 
   const handleEsignInteractive = useCallback(
     (_parsed: ParsedIntent, file: File | undefined) => {
@@ -92,7 +115,18 @@ export default function App() {
       setMode('result');
       setRightOpen(true);
       addNode(result.fileName, undefined, result.downloadUrl);
-      setCanvasViewMode(true); // show canvas with all docs when new result arrives
+      setCanvasViewMode(true);
+      const completionMessage = (result as ToolResult & { message?: string }).message ?? "Here's your processed document.";
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          role: 'corner',
+          content: completionMessage,
+          timestamp: Date.now(),
+          result,
+        },
+      ]);
       if (result.walkthrough && result.walkthrough.length > 0) {
         setWalkthroughSteps(result.walkthrough);
         setWalkthroughActive(true);
@@ -118,10 +152,9 @@ export default function App() {
         ...prev,
         {
           id: crypto.randomUUID(),
-          role: 'corner',
-          content: `I see you uploaded ${file.name}. What would you like to do with it?`,
+          role: 'system',
+          content: `[${file.name}] loaded. What would you like to do with it?`,
           timestamp: Date.now(),
-          attachmentName: file.name,
         },
       ]);
     },
@@ -131,22 +164,29 @@ export default function App() {
 
   const handleSend = useCallback(
     (text: string, files: File[] = []) => {
-      // Merge freshly attached files with the in-canvas file
       const allFiles = files.length > 0 ? files : currentFile ? [currentFile] : [];
+      const isFirstFile = files.length > 0 && !currentFile;
       if (files.length > 0) setCurrentFile(files[0]);
 
-      setMessages((prev) => [
-        ...prev,
-        {
+      setMessages((prev) => {
+        const next = [...prev];
+        if (isFirstFile && files[0]) {
+          next.push({
+            id: crypto.randomUUID(),
+            role: 'system',
+            content: `[${files[0].name}] loaded. What would you like to do with it?`,
+            timestamp: Date.now(),
+          });
+        }
+        next.push({
           id: crypto.randomUUID(),
           role: 'user',
           content: text,
           timestamp: Date.now(),
-          attachmentName: allFiles.length > 1
-            ? `${allFiles.length} files`
-            : allFiles[0]?.name,
-        },
-      ]);
+          attachmentName: allFiles.length > 1 ? `${allFiles.length} files` : allFiles[0]?.name,
+        });
+        return next;
+      });
 
       setMode('processing');
       executeWithOrchestrator(text, allFiles);
@@ -231,15 +271,7 @@ export default function App() {
         }
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'E-sign failed';
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: crypto.randomUUID(),
-            role: 'corner',
-            content: msg,
-            timestamp: Date.now(),
-          },
-        ]);
+        toast({ variant: 'destructive', title: 'E-sign failed', description: msg });
         setMode('empty');
         setProcessing(null);
       }
@@ -364,9 +396,89 @@ export default function App() {
             </div>
           )}
 
-          {/* Canvas content — centered for empty/processing/doc; full-bleed only for multi-doc canvas */}
-          <div className="flex-1 flex items-center justify-center overflow-hidden p-6 relative">
-            {/* Figma-style canvas: full-bleed when showing all docs */}
+          {/* Canvas content: split (doc | chat), focused doc, or single-column empty/processing/result */}
+          <div className="flex-1 flex min-h-0 overflow-hidden relative">
+            {/* State 2: Two columns — document (left) | conversation (right) */}
+            {showSplit && (
+              <>
+                <DocumentColumn
+                  result={currentResult}
+                  filePreviewUrl={filePreviewUrl}
+                  fileName={currentResult?.fileName ?? currentFile?.name ?? ''}
+                  mimeType={currentResult?.mimeType ?? currentFile?.type ?? ''}
+                  sizeBytes={currentResult?.sizeBytes ?? currentFile?.size ?? 0}
+                  onFocus={() => setFocusedDocumentView(true)}
+                  previewMode={panelSettings.previewMode ?? 'page'}
+                  zoomPercent={panelSettings.zoom ?? 100}
+                />
+                <ChatThreadColumn
+                  messages={messages}
+                  isProcessing={mode === 'processing'}
+                  onSend={handleSend}
+                  onClearThread={() => setMessages([])}
+                  disabled={mode === 'processing'}
+                  currentFile={currentFile}
+                  onClearCurrentFile={currentFile ? () => setCurrentFile(null) : undefined}
+                />
+              </>
+            )}
+
+            {/* State 3: Focused document — full width, back to conversation */}
+            {focusedDocumentView && (currentFile || currentResult) && (
+              <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                <div
+                  className="flex-shrink-0 flex items-center gap-2 px-4 py-2"
+                  style={{
+                    borderBottom: '1px solid var(--border)',
+                    background: 'var(--white)',
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setFocusedDocumentView(false)}
+                    style={{
+                      padding: '4px 8px',
+                      fontSize: 12,
+                      color: 'var(--text-muted)',
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      fontFamily: 'Geist, sans-serif',
+                    }}
+                  >
+                    ← Conversation
+                  </button>
+                </div>
+                <div className="flex-1 min-h-0 overflow-auto flex items-center justify-center p-6">
+                  {currentResult && (
+                    <DocumentViewer
+                      result={currentResult}
+                      onUndo={handleUndo}
+                      walkthroughStep={currentWalkStep}
+                      previewMode={panelSettings.previewMode ?? 'page'}
+                      zoomPercent={panelSettings.zoom ?? 100}
+                    />
+                  )}
+                  {!currentResult && filePreviewUrl && currentFile && (
+                    <DocumentViewer
+                      result={{
+                        fileId: 'preview',
+                        downloadUrl: filePreviewUrl,
+                        fileName: currentFile.name,
+                        mimeType: currentFile.type,
+                        sizeBytes: currentFile.size,
+                      }}
+                      previewMode={panelSettings.previewMode ?? 'page'}
+                      zoomPercent={panelSettings.zoom ?? 100}
+                    />
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Single column: empty / processing / result / esign (when not split, not focused) */}
+            {!showSplit && !focusedDocumentView && (
+            <div className="flex-1 flex items-center justify-center overflow-hidden p-6 relative">
             {mode === 'result' && nodes.length > 0 && canvasViewMode && (
               <div className="absolute inset-0 p-6">
                 <DocCanvas
@@ -390,10 +502,19 @@ export default function App() {
                   <EmptyState onAction={handleSend} />
                 )}
 
-                {mode === 'processing' && processing && !processing.stepTotal && (
+                {mode === 'processing' && processing && (
                   <div className="flex flex-col items-center gap-3">
-                    <div className="canvas-spinner" />
-                    <p style={{ color: 'var(--text-muted)', fontSize: '12px' }}>{processing.label}</p>
+                    {processing.toolNames && processing.toolNames.length > 0 ? (
+                      <OrchestratorLoadingAnimation
+                        toolNames={processing.toolNames}
+                        label={processing.label}
+                      />
+                    ) : (
+                      <>
+                        <div className="canvas-spinner" />
+                        <p style={{ color: 'var(--text-muted)', fontSize: '12px' }}>{processing.label}</p>
+                      </>
+                    )}
                   </div>
                 )}
 
@@ -452,8 +573,13 @@ export default function App() {
                 )}
               </>
             )}
+            </div>
+            )}
+
           </div>
 
+          {/* Floating chat input only when not in split view */}
+          {!showSplit && (
           <ChatFloat
             messages={messages}
             currentFile={currentFile}
@@ -462,7 +588,9 @@ export default function App() {
             floatUp={(mode === 'empty' || mode === 'clarifying') && inputFocused}
             onFocus={() => setInputFocused(true)}
             onBlur={() => setInputFocused(false)}
+            onClearCurrentFile={currentFile ? () => setCurrentFile(null) : undefined}
           />
+          )}
         </main>
           </div>
         </div>
@@ -501,6 +629,8 @@ export default function App() {
       {onboardingVisible && (
         <OnboardingModal onComplete={() => setOnboardingVisible(false)} />
       )}
+
+      <Toaster />
     </div>
   );
 }

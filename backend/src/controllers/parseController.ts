@@ -6,7 +6,7 @@ export async function handleParse(req: Request, res: Response, next: NextFunctio
   try {
     const { message, fileContext } = req.body as {
       message: string;
-      fileContext?: { name: string; type: string; size: number };
+      fileContext?: { name: string; type: string; size: number; pageCount?: number };
     };
 
     if (!message?.trim()) {

@@ -2,6 +2,7 @@ import type { Request, Response, NextFunction } from 'express';
 import { executeTool, isKnownTool } from '../services/toolService';
 import { saveFileRecord } from '../services/fileService';
 import { createError } from '../middleware/errorHandler';
+import { buildToolConfirmationMessage } from '../prompts/documentIntelligence';
 import type { ToolResult } from '@corner/shared';
 import type { WalkthroughStep } from '../types';
 
@@ -40,13 +41,14 @@ export async function handleExecute(req: Request, res: Response, next: NextFunct
       userId:    req.user?.userId?.toString(),
     });
 
-    const clientResult: ToolResult & { walkthrough?: WalkthroughStep[] } = {
+    const clientResult: ToolResult & { walkthrough?: WalkthroughStep[]; message?: string } = {
       fileId,
       downloadUrl: `/api/file/${fileId}`,
       fileName:    result.fileName,
       mimeType:    result.mimeType,
       sizeBytes:   result.sizeBytes,
       walkthrough: result.walkthrough,
+      message:     buildToolConfirmationMessage(tool, parsedParams),
     };
 
     res.json(clientResult);

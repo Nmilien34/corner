@@ -1,103 +1,83 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { env } from '../config/env';
 import type { ParsedIntent } from '@corner/shared';
+import { CORNER_SYSTEM_PROMPT, buildDocumentAnalysisPrompt } from '../prompts/documentIntelligence';
 
 const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
 
-const SYSTEM_PROMPT = `You are the intent parser for Corner, a document workspace tool.
-Given a user message and optional file context, return ONLY valid JSON — no explanation, no markdown fences.
+const INTENT_PARSING_ADDENDUM = `
 
-Schema:
-{
-  "intent": string,
-  "tool": string | null,
-  "mode": "silent" | "interactive",
-  "confidence": number,
-  "clarification": string | null,
-  "params": { "input_type": string, "output_type": string, "options": {} },
-  "steps": [{ "tool": string, "params": {}, "description": string }]
+---
+INTENT PARSING OUTPUT:
+When responding to this request, you are also driving tool execution. You MUST end your response with a single line that contains ONLY a valid JSON object (no markdown fences, no explanation after it). The JSON must have these exact keys:
+- intent (string): brief description of what the user wants
+- tool (string | null): exact tool name from the Corner registry, or null if no tool applies
+- mode ("silent" | "interactive")
+- confidence (number 0-1)
+- clarification (string | null)
+- params: { "input_type": string, "output_type": string, "options": object }
+- steps: array of { "tool": string, "params": object, "description": string }
+
+Use ONLY these tool names: pdf_to_word, pdf_to_excel, pdf_to_pptx, pdf_to_jpg, pdf_to_png, word_to_pdf, excel_to_pdf, pptx_to_pdf, jpg_to_pdf, png_to_pdf, merge_pdf, split_pdf, compress_pdf, rotate_pdf, add_page_numbers, password_protect_pdf, remove_pdf_password, add_watermark_pdf, repair_pdf, ocr, html_to_pdf, url_to_pdf, fill_pdf_form, esign, remove_background, resize_image, crop_image, flip_rotate_image, add_border_image, watermark_image, image_to_pdf, compress_image, convert_image, jpg_to_png, png_to_jpg, webp_to_jpg, jpg_to_webp, add_page_numbers_word, track_changes_word, csv_to_excel, excel_to_csv, generate_qr, extract_text, extract_images, extract_tables.
+If the user's request does not map to any tool, set tool to null and clarification to a message explaining what Corner can do. The primary "tool" field must equal the first step's tool. Always populate steps (at least one item for single-step tasks).`;
+
+/** Extract the last complete JSON object from text (for parsing intent from document-intelligence response). */
+function extractLastJson(text: string): string {
+  const endIdx = text.lastIndexOf('}');
+  if (endIdx === -1) return '{}';
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+  for (let i = endIdx; i >= 0; i--) {
+    const ch = text[i];
+    if (ch === '}') depth++;
+    else if (ch === '{') {
+      depth--;
+      if (depth === 0) return text.slice(i, endIdx + 1);
+    }
+    // When walking backwards we don't need full string/escape handling for finding the start of the object
+  }
+  return '{}';
 }
-
-Tool Registry (ONLY use these exact tool names, no others):
-PDF conversions:
-- pdf_to_word: convert PDF to DOCX. mode: silent
-- pdf_to_excel: convert PDF to XLSX. mode: silent
-- pdf_to_pptx: convert PDF to PPTX. mode: silent
-- pdf_to_jpg: convert PDF pages to JPG images. mode: silent
-- pdf_to_png: convert PDF pages to PNG images. mode: silent
-- word_to_pdf: convert DOCX/DOC to PDF. mode: silent
-- excel_to_pdf: convert XLSX to PDF. mode: silent
-- pptx_to_pdf: convert PPTX to PDF. mode: silent
-- jpg_to_pdf: convert JPG to PDF. mode: silent
-- png_to_pdf: convert PNG to PDF. mode: silent
-
-PDF utilities:
-- merge_pdf: combine multiple PDFs into one. mode: silent
-- split_pdf: split PDF into pages or ranges. mode: silent
-- compress_pdf: reduce PDF file size. mode: silent
-- rotate_pdf: rotate PDF pages. mode: silent
-- add_page_numbers: add page numbers to PDF. mode: silent
-- password_protect_pdf: add password to PDF. mode: interactive
-- remove_pdf_password: remove PDF password. mode: interactive
-- add_watermark_pdf: add watermark text/image to PDF. mode: interactive
-- repair_pdf: attempt to fix a corrupted PDF. mode: silent
-- ocr: extract text from scanned PDF or image. mode: silent
-- html_to_pdf: convert HTML string to PDF. mode: silent
-- url_to_pdf: convert a web URL to PDF. mode: silent
-- fill_pdf_form: fill PDF form fields. mode: interactive
-- esign: add signature to PDF. mode: interactive
-
-Image tools:
-- remove_background: remove image background using AI. mode: silent
-- resize_image: resize image to specified dimensions. mode: silent
-- crop_image: crop image to specified area. mode: interactive
-- flip_rotate_image: flip or rotate image. mode: silent
-- add_border_image: add border to image. mode: silent
-- watermark_image: add watermark to image. mode: interactive
-- image_to_pdf: convert image to PDF. mode: silent
-- compress_image: reduce image file size. mode: silent
-- convert_image: convert between JPG, PNG, WEBP, AVIF. mode: silent
-
-Image format shortcuts:
-- jpg_to_png, png_to_jpg, webp_to_jpg, jpg_to_webp: format conversions. mode: silent
-
-Office utilities:
-- add_page_numbers_word: add page numbers to Word doc. mode: silent
-- track_changes_word: manage track changes in Word doc. mode: interactive
-- csv_to_excel: convert CSV to Excel. mode: silent
-- excel_to_csv: convert Excel to CSV. mode: silent
-
-Misc:
-- generate_qr: generate QR code from URL or text. mode: silent
-- extract_text: extract all text from document. mode: silent
-- extract_images: extract embedded images from document. mode: silent
-- extract_tables: extract tables from document. mode: silent
-
-IMPORTANT: If the user's request does not map to any tool above, set tool to null and clarification to a message explaining what Corner can currently do.
-
-Rules:
-- If confidence < 0.7, set clarification question and keep tool/mode as best guess
-- If confidence >= 0.7, execute without asking for confirmation
-- Always populate the steps array (single item for single-step tasks)
-- Multi-step example: user says "sign and compress" -> steps has 2 entries, first tool = esign, second = compress_pdf
-- The primary "tool" field must equal the first step's tool`;
 
 export async function parseIntent(
   message: string,
-  fileContext?: { name: string; type: string; size: number },
+  fileContext?: { name: string; type: string; size: number; pageCount?: number },
 ): Promise<ParsedIntent> {
   const userContent = fileContext
-    ? `User message: "${message}"\nFile uploaded: ${fileContext.name} (${fileContext.type}, ${Math.round(fileContext.size / 1024)}KB)`
-    : `User message: "${message}"`;
+    ? buildDocumentAnalysisPrompt(message, fileContext.name, fileContext.type, fileContext.pageCount)
+    : buildDocumentAnalysisPrompt(message, '', 'none');
 
   const response = await client.messages.create({
     model: 'claude-opus-4-6',
-    max_tokens: 1024,
-    system: SYSTEM_PROMPT,
+    max_tokens: 2048,
+    system: CORNER_SYSTEM_PROMPT + INTENT_PARSING_ADDENDUM,
     messages: [{ role: 'user', content: userContent }],
   });
 
   const text = response.content[0].type === 'text' ? response.content[0].text : '{}';
-  const cleaned = text.replace(/^```(?:json)?\n?|\n?```$/gm, '').trim();
-  return JSON.parse(cleaned) as ParsedIntent;
+  const jsonStr = extractLastJson(text.trim());
+  let parsed: ParsedIntent;
+  try {
+    parsed = JSON.parse(jsonStr) as ParsedIntent;
+  } catch {
+    parsed = {
+      intent: '',
+      tool: null,
+      mode: 'silent',
+      confidence: 0,
+      clarification: 'Could not parse response. Please try rephrasing.',
+      params: { input_type: '', output_type: '', options: {} },
+      steps: [],
+    };
+  }
+  if (typeof parsed.confidence !== 'number') parsed.confidence = 0.5;
+  if (!Array.isArray(parsed.steps)) parsed.steps = [];
+  if (typeof parsed.params !== 'object' || parsed.params === null) {
+    parsed.params = { input_type: '', output_type: '', options: {} };
+  }
+  if (typeof parsed.intent !== 'string') parsed.intent = '';
+  if (parsed.tool !== null && typeof parsed.tool !== 'string') parsed.tool = null;
+  if (parsed.mode !== 'silent' && parsed.mode !== 'interactive') parsed.mode = 'silent';
+  return parsed;
 }

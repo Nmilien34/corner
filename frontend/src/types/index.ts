@@ -58,10 +58,12 @@ export interface VersionNode {
 
 export interface ChatMessage {
   id: string
-  role: 'user' | 'corner'
+  role: 'user' | 'corner' | 'system'
   content: string
   timestamp: number
   attachmentName?: string
+  /** When present, show inline result card in corner message */
+  result?: ToolResult
 }
 
 export interface SavedSignature {
@@ -102,6 +104,8 @@ export interface ProcessingState {
   label: string
   stepCurrent?: number
   stepTotal?: number
+  /** Tool names from orchestrator plan (for loading animation) */
+  toolNames?: string[]
 }
 
 export interface SignatureField {

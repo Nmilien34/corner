@@ -31,7 +31,7 @@ export default function EmptyState({ onAction }: Props) {
           className="flex flex-col items-center gap-2"
           style={{ color: 'var(--text-muted)' }}
         >
-          <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)' }}>
+          <span className="title-hero" style={{ width: 'auto', height: 'auto' }}>
             Drop files here
           </span>
           <span style={{ fontSize: 12 }}>

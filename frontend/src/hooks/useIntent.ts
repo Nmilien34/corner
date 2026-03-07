@@ -1,6 +1,7 @@
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 import axios from 'axios';
 import type { ParsedIntent, ToolResult, ProcessingState, ChatMessage, ToolName } from '../types';
+import { toast } from './use-toast';
 import type { OrchestrateEvent } from '@corner/shared';
 import type { RightPanelSettings } from '../components/Layout/RightPanel';
 import { settingsToToolParams } from '../lib/settingsToToolParams';
@@ -131,7 +132,7 @@ export function useIntent({ onProcessingChange, onResult, onMessages, onClarify,
         }
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Something went wrong';
-        addMessage(onMessages, 'corner', `Error: ${msg}`);
+        toast({ variant: 'destructive', title: 'Error', description: msg });
         onProcessingChange(null);
       }
     },
@@ -150,16 +151,19 @@ export function useIntent({ onProcessingChange, onResult, onMessages, onClarify,
         onResult(result, tool);
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Re-run failed';
-        addMessage(onMessages, 'corner', `Error: ${msg}`);
+        toast({ variant: 'destructive', title: 'Re-run failed', description: msg });
         onProcessingChange(null);
       }
     },
     [onProcessingChange, onResult, onMessages]
   );
 
+  const plannedToolNamesRef = useRef<string[]>([]);
+
   const executeWithOrchestrator = useCallback(
     async (message: string, files: File[]) => {
       try {
+        plannedToolNamesRef.current = [];
         const formData = new FormData();
         formData.append('message', message);
         files.forEach((f) => formData.append('files', f));
@@ -185,13 +189,20 @@ export function useIntent({ onProcessingChange, onResult, onMessages, onClarify,
             const json = chunk.slice(6).trim();
             if (!json) continue;
 
-            const event = JSON.parse(json) as OrchestrateEvent;
+            let event: OrchestrateEvent;
+            try {
+              event = JSON.parse(json) as OrchestrateEvent;
+            } catch {
+              continue; // skip malformed or split chunk
+            }
 
             switch (event.type) {
               case 'planning':
                 onProcessingChange({ progress: 5, label: 'Planning...' });
                 break;
-              case 'plan_ready':
+              case 'plan_ready': {
+                const toolNames = event.plan?.steps?.map((s) => s.toolName) ?? [];
+                plannedToolNamesRef.current = toolNames;
                 if (event.plan?.understanding) {
                   addMessage(onMessages, 'corner', event.plan.understanding);
                 }
@@ -204,19 +215,38 @@ export function useIntent({ onProcessingChange, onResult, onMessages, onClarify,
                   onProcessingChange(null);
                   return;
                 }
+                if (toolNames.length > 0) {
+                  onProcessingChange({
+                    progress: 10,
+                    label: event.plan?.steps?.[0]?.description ?? 'Starting...',
+                    stepCurrent: 1,
+                    stepTotal: toolNames.length,
+                    toolNames,
+                  });
+                }
                 break;
+              }
               case 'clarification':
                 addMessage(onMessages, 'corner', event.question ?? 'Could you clarify?');
                 onClarify(event.question ?? '');
                 onProcessingChange(null);
                 return;
               case 'step_start': {
+                // Fallback: build tool list from step_start when plan_ready had no steps
+                if (event.tool) {
+                  if (plannedToolNamesRef.current.length === 0) {
+                    plannedToolNamesRef.current = [event.tool];
+                  } else if (!plannedToolNamesRef.current.includes(event.tool)) {
+                    plannedToolNamesRef.current = [...plannedToolNamesRef.current, event.tool];
+                  }
+                }
                 const total = event.allSteps?.length ?? (event.stepIndex != null ? event.stepIndex + 1 : 1);
                 onProcessingChange({
                   progress: Math.round(((event.stepIndex ?? 0) / Math.max(total, 1)) * 85) + 10,
                   label: event.description ?? `Running ${event.tool}`,
                   stepCurrent: (event.stepIndex ?? 0) + 1,
                   stepTotal: total,
+                  toolNames: plannedToolNamesRef.current,
                 });
                 break;
               }
@@ -224,10 +254,18 @@ export function useIntent({ onProcessingChange, onResult, onMessages, onClarify,
                 // Intermediate step done — step_start for the next step will update progress
                 break;
               case 'step_error':
-                addMessage(onMessages, 'corner', `Step failed: ${event.error ?? 'unknown error'}`);
+                toast({
+                  variant: 'destructive',
+                  title: 'Step failed',
+                  description: event.error ?? 'unknown error',
+                });
                 break;
               case 'done':
-                onProcessingChange({ progress: 100, label: 'Done' });
+                onProcessingChange({
+                  progress: 100,
+                  label: 'Done',
+                  toolNames: plannedToolNamesRef.current.length > 0 ? plannedToolNamesRef.current : undefined,
+                });
                 await new Promise((r) => setTimeout(r, 300));
                 onProcessingChange(null);
                 if (event.finalResult) {
@@ -236,7 +274,11 @@ export function useIntent({ onProcessingChange, onResult, onMessages, onClarify,
                 }
                 break;
               case 'error':
-                addMessage(onMessages, 'corner', `Error: ${event.message ?? 'Orchestration failed'}`);
+                toast({
+                  variant: 'destructive',
+                  title: 'Error',
+                  description: event.message ?? 'Orchestration failed',
+                });
                 onProcessingChange(null);
                 break;
             }
@@ -244,7 +286,7 @@ export function useIntent({ onProcessingChange, onResult, onMessages, onClarify,
         }
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Orchestration failed';
-        addMessage(onMessages, 'corner', `Error: ${msg}`);
+        toast({ variant: 'destructive', title: 'Error', description: msg });
         onProcessingChange(null);
       }
     },

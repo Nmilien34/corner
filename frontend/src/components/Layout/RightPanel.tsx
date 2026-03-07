@@ -2450,6 +2450,24 @@ function MoreTabContent({
   );
 }
 
+// Lazy map: tool id → Lucide icon (for orchestrator loading animation)
+let toolIconMap: Map<string, LucideIcon> | null = null;
+function getToolIconMap(): Map<string, LucideIcon> {
+  if (toolIconMap) return toolIconMap;
+  toolIconMap = new Map();
+  const list = buildToolsList();
+  for (const cat of list) {
+    for (const tool of cat.tools) {
+      toolIconMap.set(tool.id, tool.icon);
+    }
+  }
+  return toolIconMap;
+}
+
+export function getToolIcon(toolName: string): LucideIcon {
+  return getToolIconMap().get(toolName) ?? FileText;
+}
+
 // ---------------------------------------------------------------------------
 // Main component
 // ---------------------------------------------------------------------------
