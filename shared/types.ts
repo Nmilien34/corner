@@ -63,6 +63,8 @@ export interface ParsedIntent {
   clarification: string | null;
   intent: string;
   steps: Array<{ tool: string; params: Record<string, unknown>; description: string }>;
+  /** File format badge resolved from the filename extension — injected by the backend, not Claude. */
+  fileExtension?: string;
 }
 
 /** Client-facing result after tool execution */

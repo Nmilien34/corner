@@ -13,6 +13,9 @@ export interface IToolCall {
   toolName: string;
   params: Record<string, unknown>;
   resultFileId?: string;
+  resultFileName?: string;
+  resultMimeType?: string;
+  resultSizeBytes?: number;
   isStub: boolean;
   durationMs?: number;
 }
@@ -41,11 +44,14 @@ const AttachmentSchema = new Schema<IAttachment>(
 
 const ToolCallSchema = new Schema<IToolCall>(
   {
-    toolName:     { type: String, required: true },
-    params:       { type: Schema.Types.Mixed, default: {} },
-    resultFileId: { type: String },
-    isStub:       { type: Boolean, default: false },
-    durationMs:   { type: Number },
+    toolName:        { type: String, required: true },
+    params:          { type: Schema.Types.Mixed, default: {} },
+    resultFileId:   { type: String },
+    resultFileName: { type: String },
+    resultMimeType: { type: String },
+    resultSizeBytes: { type: Number },
+    isStub:         { type: Boolean, default: false },
+    durationMs:      { type: Number },
   },
   { _id: false },
 );

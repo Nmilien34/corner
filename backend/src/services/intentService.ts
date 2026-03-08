@@ -26,8 +26,6 @@ function extractLastJson(text: string): string {
   const endIdx = text.lastIndexOf('}');
   if (endIdx === -1) return '{}';
   let depth = 0;
-  let inString = false;
-  let escape = false;
   for (let i = endIdx; i >= 0; i--) {
     const ch = text[i];
     if (ch === '}') depth++;
@@ -43,10 +41,16 @@ function extractLastJson(text: string): string {
 export async function parseIntent(
   message: string,
   fileContext?: { name: string; type: string; size: number; pageCount?: number },
+  conversationHistory?: Array<{ role: string; content: string }>,
 ): Promise<ParsedIntent> {
+  const isFirstMessage = !conversationHistory || conversationHistory.length <= 1;
+  const previousContext = conversationHistory && conversationHistory.length > 1
+    ? conversationHistory.slice(-4).map(m => `${m.role}: ${m.content}`).join('\n')
+    : undefined;
+
   const userContent = fileContext
-    ? buildDocumentAnalysisPrompt(message, fileContext.name, fileContext.type, fileContext.pageCount)
-    : buildDocumentAnalysisPrompt(message, '', 'none');
+    ? buildDocumentAnalysisPrompt(message, fileContext.name, fileContext.type, fileContext.pageCount, isFirstMessage, previousContext)
+    : buildDocumentAnalysisPrompt(message, '', 'none', undefined, isFirstMessage, previousContext);
 
   const response = await client.messages.create({
     model: 'claude-opus-4-6',

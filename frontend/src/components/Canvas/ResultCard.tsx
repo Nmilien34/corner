@@ -1,6 +1,7 @@
 import type React from 'react';
 import { Download, RotateCcw, Edit3 } from 'lucide-react';
 import type { ToolResult } from '../../types';
+import FormatBadge from '../ui/FormatBadge';
 
 interface Props {
   result: ToolResult;
@@ -69,12 +70,15 @@ export default function ResultCard({ result, onUndo }: Props) {
     >
       {/* File info */}
       <div className="flex flex-col flex-1 min-w-0">
-        <span
-          className="truncate"
-          style={{ color: 'var(--text-primary)', fontSize: '13px', fontWeight: 500 }}
-        >
-          {result.fileName}
-        </span>
+        <div className="flex items-center gap-2 min-w-0">
+          <span
+            className="truncate"
+            style={{ color: 'var(--text-primary)', fontSize: '13px', fontWeight: 500 }}
+          >
+            {result.fileName}
+          </span>
+          <FormatBadge fileName={result.fileName} size="sm" />
+        </div>
         <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>
           {formatBytes(result.sizeBytes)}
         </span>

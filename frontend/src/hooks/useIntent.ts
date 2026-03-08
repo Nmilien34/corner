@@ -1,6 +1,7 @@
 import { useCallback, useRef } from 'react';
 import axios from 'axios';
 import type { ParsedIntent, ToolResult, ProcessingState, ChatMessage, ToolName } from '../types';
+import { getFileFormatInfo } from '../lib/fileFormat';
 import { toast } from './use-toast';
 import type { OrchestrateEvent } from '@corner/shared';
 import type { RightPanelSettings } from '../components/Layout/RightPanel';
@@ -53,11 +54,18 @@ export function useIntent({ onProcessingChange, onResult, onMessages, onClarify,
     async (message: string, file?: File) => {
       try {
         // 1. Call parse route
+        const formatInfo = file ? getFileFormatInfo(file.name) : null;
         const { data: parsed } = await axios.post<ParsedIntent>('/api/parse', {
           message,
           fileContext: file
             ? { name: file.name, type: file.type, size: file.size }
             : undefined,
+          ...(formatInfo ? {
+            fileFormat: formatInfo.format,
+            fileCategory: formatInfo.category,
+            canOCR: formatInfo.canOCR,
+            isImage: formatInfo.isImage,
+          } : {}),
         });
 
         // 2. Confidence gate — if low, show clarification and stop

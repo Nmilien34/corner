@@ -1,5 +1,6 @@
 import { Paperclip } from 'lucide-react';
 import type { ChatMessage as ChatMessageType } from '../../types';
+import FormatBadge from '../ui/FormatBadge';
 
 interface Props {
   message: ChatMessageType;
@@ -74,13 +75,14 @@ export default function ChatMessage({ message, compact }: Props) {
 
           {message.attachmentName && (
             <div
-              className="flex items-center gap-1"
+              className="flex items-center gap-1.5"
               style={{ color: 'var(--text-muted)', fontSize: '11px' }}
             >
               <Paperclip size={10} strokeWidth={1.5} />
-              <span className="truncate" style={{ maxWidth: 160 }}>
+              <span className="truncate" style={{ maxWidth: 140 }}>
                 {message.attachmentName}
               </span>
+              <FormatBadge fileName={message.attachmentName} size="sm" />
             </div>
           )}
         </div>

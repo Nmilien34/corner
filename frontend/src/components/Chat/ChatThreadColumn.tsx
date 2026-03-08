@@ -4,27 +4,13 @@ import {
   ArrowUp,
   Trash2,
   MessageSquare,
-  FileText,
-  File,
-  FileSpreadsheet,
-  Presentation,
-  Image as ImageIcon,
   Download,
   X,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import type { ChatMessage as ChatMessageType, ToolResult } from '../../types';
-
-function getFileIcon(name: string, mimeType?: string) {
-  const n = name.toLowerCase();
-  const t = (mimeType || '').toLowerCase();
-  if (n.endsWith('.pdf') || t.includes('pdf')) return FileText;
-  if (/\.(docx?|doc)$/.test(n) || t.includes('word')) return FileText;
-  if (/\.(xlsx?|xls|csv)$/.test(n) || t.includes('sheet') || t.includes('excel')) return FileSpreadsheet;
-  if (/\.(pptx?|ppt)$/.test(n) || t.includes('presentation')) return Presentation;
-  if (/\.(png|jpe?g|gif|webp|svg)$/.test(n) || t.startsWith('image/')) return ImageIcon;
-  return File;
-}
+import FormatBadge from '../ui/FormatBadge';
+import { getFileFormatInfo, getConversionWarning } from '../../lib/fileFormat';
 
 function formatSize(bytes: number): string {
   if (!bytes) return '—';
@@ -34,7 +20,6 @@ function formatSize(bytes: number): string {
 }
 
 function ResultCardInline({ result }: { result: ToolResult }) {
-  const Icon = getFileIcon(result.fileName, result.mimeType);
   return (
     <a
       href={result.downloadUrl}
@@ -51,12 +36,12 @@ function ResultCardInline({ result }: { result: ToolResult }) {
         fontFamily: 'Geist, sans-serif',
       }}
     >
-      <Icon size={16} strokeWidth={1.5} style={{ color: 'var(--accent)', flexShrink: 0 }} />
+      <FormatBadge fileName={result.fileName} size="sm" />
       <span className="truncate flex-1 min-w-0" style={{ fontSize: 12 }}>
         {result.fileName}
       </span>
       <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-        {formatSize(result.sizeBytes)} · {result.mimeType.includes('pdf') ? 'PDF' : 'File'}
+        {formatSize(result.sizeBytes)}
       </span>
       <Download size={14} strokeWidth={1.5} style={{ color: 'var(--accent)', flexShrink: 0 }} />
     </a>
@@ -110,6 +95,17 @@ export default function ChatThreadColumn({
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages.length, isProcessing]);
 
+  const [conversionWarning, setConversionWarning] = useState<string | null>(null);
+
+  useEffect(() => {
+    const file = currentFile ?? attachedFiles[0] ?? null;
+    if (file) {
+      setConversionWarning(getConversionWarning(getFileFormatInfo(file.name)));
+    } else {
+      setConversionWarning(null);
+    }
+  }, [currentFile?.name, attachedFiles.length]);
+
   const canSend = !!(text.trim() || attachedFiles.length > 0 || currentFile) && !disabled;
   const handleSend = () => {
     if (!canSend) return;
@@ -138,7 +134,7 @@ export default function ChatThreadColumn({
     >
       {/* Thread header */}
       <div
-        className="flex-shrink-0 flex items-center justify-between px-4"
+        className="shrink-0 flex items-center justify-between px-4"
         style={{
           height: 40,
           borderBottom: '1px solid var(--border)',
@@ -196,7 +192,6 @@ export default function ChatThreadColumn({
           }
 
           if (msg.role === 'user') {
-            const AttachmentIcon = msg.attachmentName ? getFileIcon(msg.attachmentName) : FileText;
             return (
               <div key={msg.id} className="flex justify-end">
                 <div style={{ maxWidth: '85%' }}>
@@ -210,7 +205,7 @@ export default function ChatThreadColumn({
                         color: 'var(--text-muted)',
                       }}
                     >
-                      <AttachmentIcon size={12} strokeWidth={1.5} />
+                      <FormatBadge fileName={msg.attachmentName} size="sm" />
                       <span className="truncate">{msg.attachmentName}</span>
                     </div>
                   )}
@@ -270,7 +265,7 @@ export default function ChatThreadColumn({
 
       {/* Input — pinned bottom; focus = accent border */}
       <div
-        className="flex-shrink-0 flex flex-col gap-1 chat-thread-input-wrap"
+        className="shrink-0 flex flex-col gap-1 chat-thread-input-wrap"
         style={{
           margin: '0 12px 12px',
           padding: '8px 10px',
@@ -280,44 +275,95 @@ export default function ChatThreadColumn({
           transition: 'border-color 150ms ease',
         }}
       >
-        {currentFile && onClearCurrentFile && (() => {
-          const CurrentFileIcon = getFileIcon(currentFile.name, currentFile.type);
-          return (
-          <div className="flex items-center gap-2 flex-wrap">
-            <div
-              className="flex items-center gap-1.5 rounded-md flex-1 min-w-0"
-              style={{
-                padding: '4px 6px 4px 8px',
-                background: 'var(--hover)',
-                fontSize: 11,
-                color: 'var(--text-muted)',
-                maxWidth: '100%',
-              }}
-            >
-              <CurrentFileIcon size={12} strokeWidth={1.5} style={{ flexShrink: 0 }} />
-              <span className="truncate">{currentFile.name}</span>
-              <button
-                type="button"
-                onClick={onClearCurrentFile}
-                aria-label="Remove document"
+        {currentFile && onClearCurrentFile && (
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center gap-2">
+              <div
+                className="flex items-center gap-1.5 rounded-md flex-1 min-w-0"
                 style={{
-                  padding: 2,
-                  marginLeft: 2,
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
+                  padding: '4px 6px 4px 6px',
+                  background: 'var(--hover)',
+                  fontSize: 11,
                   color: 'var(--text-muted)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
+                  maxWidth: '100%',
                 }}
               >
-                <X size={12} strokeWidth={2} />
-              </button>
+                <FormatBadge fileName={currentFile.name} size="sm" />
+                <span className="truncate">{currentFile.name}</span>
+                <button
+                  type="button"
+                  onClick={onClearCurrentFile}
+                  aria-label="Remove document"
+                  style={{
+                    padding: 2,
+                    marginLeft: 2,
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: 'var(--text-muted)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <X size={12} strokeWidth={2} />
+                </button>
+              </div>
             </div>
+            {conversionWarning && (
+              <div
+                style={{
+                  padding: '8px 10px',
+                  background: '#FFFBEB',
+                  border: '1px solid #FCD34D',
+                  borderRadius: 6,
+                  fontSize: 11,
+                  color: '#92400E',
+                  fontFamily: 'Geist, sans-serif',
+                }}
+              >
+                {conversionWarning}
+                <div className="flex gap-2" style={{ marginTop: 6 }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onSend(`Convert ${currentFile.name} to PDF`, []);
+                      setConversionWarning(null);
+                    }}
+                    style={{
+                      padding: '2px 8px',
+                      borderRadius: 4,
+                      border: '1px solid #92400E',
+                      background: 'none',
+                      color: '#92400E',
+                      fontSize: 11,
+                      cursor: 'pointer',
+                      fontFamily: 'Geist, sans-serif',
+                    }}
+                  >
+                    Convert automatically
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConversionWarning(null)}
+                    style={{
+                      padding: '2px 8px',
+                      borderRadius: 4,
+                      border: '1px solid var(--border)',
+                      background: 'none',
+                      color: '#92400E',
+                      fontSize: 11,
+                      cursor: 'pointer',
+                      fontFamily: 'Geist, sans-serif',
+                    }}
+                  >
+                    Skip for now
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
-          );
-        })()}
+        )}
         <div className="flex items-center gap-1" style={{ height: 44 }}>
         <button
           type="button"

@@ -4,9 +4,10 @@ import { createError } from '../middleware/errorHandler';
 
 export async function handleParse(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { message, fileContext } = req.body as {
+    const { message, fileContext, conversationHistory } = req.body as {
       message: string;
       fileContext?: { name: string; type: string; size: number; pageCount?: number };
+      conversationHistory?: Array<{ role: string; content: string }>;
     };
 
     if (!message?.trim()) {
@@ -14,8 +15,9 @@ export async function handleParse(req: Request, res: Response, next: NextFunctio
       return;
     }
 
-    const parsed = await parseIntent(message, fileContext);
-    res.json(parsed);
+    const fileExtension = fileContext?.name.split('.').pop()?.toUpperCase() ?? 'UNKNOWN';
+    const parsed = await parseIntent(message, fileContext, conversationHistory);
+    res.json({ ...parsed, fileExtension });
   } catch (err) {
     console.error('[parse]', err);
     next(createError(500, 'Failed to parse intent'));

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useDropzone } from 'react-dropzone';
 import axios from 'axios';
 import Topbar from './components/Layout/Topbar';
@@ -20,6 +20,7 @@ import SettingsModal from './components/Layout/SettingsModal';
 import OnboardingModal from './components/Onboarding/OnboardingModal';
 import { useIntent } from './hooks/useIntent';
 import { useVersionHistory } from './hooks/useVersionHistory';
+import { useConversations } from './hooks/useConversations';
 import { Toaster } from './components/ui/toaster';
 import { toast } from './hooks/use-toast';
 import type {
@@ -32,7 +33,56 @@ import type {
   VersionNode,
   ToolName,
   WalkthroughStep,
+  ConversationListItem,
 } from './types';
+
+/** Map tool name to a short label for history (e.g. "PDF → Word", "Compressed"). */
+function toolToFriendlyOperation(tool: ToolName): string {
+  const map: Record<string, string> = {
+    pdf_to_word: 'PDF → Word',
+    pdf_to_excel: 'PDF → Excel',
+    pdf_to_pptx: 'PDF → PowerPoint',
+    pdf_to_jpg: 'PDF → JPG',
+    pdf_to_png: 'PDF → PNG',
+    word_to_pdf: 'Word → PDF',
+    excel_to_pdf: 'Excel → PDF',
+    pptx_to_pdf: 'PowerPoint → PDF',
+    jpg_to_pdf: 'Image → PDF',
+    png_to_pdf: 'Image → PDF',
+    merge_pdf: 'Merged',
+    split_pdf: 'Split',
+    compress_pdf: 'Compressed',
+    rotate_pdf: 'Rotated',
+    repair_pdf: 'Repaired',
+    add_page_numbers: 'Page numbers',
+    password_protect_pdf: 'Password protected',
+    remove_pdf_password: 'Password removed',
+    add_watermark_pdf: 'Watermarked',
+    ocr: 'OCR',
+    fill_pdf_form: 'Form filled',
+    esign: 'Signed',
+    remove_background: 'Background removed',
+    resize_image: 'Resized',
+    crop_image: 'Cropped',
+    flip_rotate_image: 'Flip/rotate',
+    add_border_image: 'Border added',
+    watermark_image: 'Watermarked',
+    image_to_pdf: 'Image → PDF',
+    compress_image: 'Compressed',
+    convert_image: 'Converted',
+    jpg_to_png: 'Converted',
+    png_to_jpg: 'Converted',
+    webp_to_jpg: 'Converted',
+    jpg_to_webp: 'Converted',
+    csv_to_excel: 'CSV → Excel',
+    excel_to_csv: 'Excel → CSV',
+    generate_qr: 'QR code',
+    extract_text: 'Text extracted',
+    extract_images: 'Images extracted',
+    extract_tables: 'Tables extracted',
+  };
+  return map[tool] ?? 'Processed';
+}
 
 export default function App() {
   const [mode, setMode] = useState<AppMode>('empty');
@@ -64,6 +114,15 @@ export default function App() {
   const [esignPdfUrl, setEsignPdfUrl] = useState('');
 
   const { nodes, addNode, clearHistory } = useVersionHistory();
+  const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
+  const currentConversationIdRef = useRef<string | null>(null);
+  const conversations = useConversations({
+    isSignedIn: !!user,
+    getToken: () => null, // TODO: wire real auth token when available
+  });
+  useEffect(() => {
+    currentConversationIdRef.current = currentConversationId;
+  }, [currentConversationId]);
 
   // Object URL for currentFile so left column can preview before processing
   useEffect(() => {
@@ -107,14 +166,14 @@ export default function App() {
   );
 
   // Intent hook wires parse → execute → result
-  const { execute: executeIntent, rerunWithSettings, executeWithOrchestrator } = useIntent({
+  const { execute: executeIntent, executeWithOrchestrator } = useIntent({
     onProcessingChange: setProcessing,
     onResult: (result, tool) => {
       setCurrentResult(result);
       setLastTool(tool);
       setMode('result');
       setRightOpen(true);
-      addNode(result.fileName, undefined, result.downloadUrl);
+      addNode(result.fileName, undefined, result.downloadUrl, toolToFriendlyOperation(tool));
       setCanvasViewMode(true);
       const completionMessage = (result as ToolResult & { message?: string }).message ?? "Here's your processed document.";
       setMessages((prev) => [
@@ -127,6 +186,20 @@ export default function App() {
           result,
         },
       ]);
+      const cid = currentConversationIdRef.current;
+      if (cid) {
+        conversations.addMessage(cid, {
+          role: 'corner',
+          content: completionMessage,
+          toolCall: {
+            toolName: tool,
+            resultFileId: result.fileId,
+            resultFileName: result.fileName,
+            resultMimeType: result.mimeType,
+            resultSizeBytes: result.sizeBytes,
+          },
+        }).catch(() => {});
+      }
       if (result.walkthrough && result.walkthrough.length > 0) {
         setWalkthroughSteps(result.walkthrough);
         setWalkthroughActive(true);
@@ -188,10 +261,21 @@ export default function App() {
         return next;
       });
 
+      (async () => {
+        let cid = currentConversationIdRef.current;
+        if (!cid) {
+          const title = (files[0] ?? currentFile)?.name?.trim() || 'New Conversation';
+          cid = await conversations.createConversation(title.slice(0, 200));
+          setCurrentConversationId(cid);
+          currentConversationIdRef.current = cid;
+        }
+        await conversations.addMessage(cid, { role: 'user', content: text });
+      })().catch(() => {});
+
       setMode('processing');
       executeWithOrchestrator(text, allFiles);
     },
-    [currentFile, executeWithOrchestrator]
+    [currentFile, conversations, executeWithOrchestrator]
   );
 
   const handleVersionRestore = useCallback((v: VersionNode) => {
@@ -205,24 +289,64 @@ export default function App() {
     setMode('result');
   }, []);
 
-  function inferFileType(node: VersionNode): LeftPanelVersionNode['fileType'] {
-    const s = (node.downloadUrl ?? node.label ?? '').toLowerCase();
+  function inferFileTypeFromFileName(fileName: string): LeftPanelVersionNode['fileType'] {
+    const s = fileName.toLowerCase();
     if (s.endsWith('.pdf')) return 'pdf';
     if (/\.(png|jpe?g|gif|webp|bmp)$/.test(s)) return 'image';
     if (/\.(docx?|doc)$/.test(s)) return 'word';
     return 'other';
   }
 
-  const versionHistoryForPanel: LeftPanelVersionNode[] = nodes.map((n) => ({
-    id: n.id,
-    fileName: n.label,
-    fileType: inferFileType(n),
-    operation: 'Processed',
-    timestamp: n.timestamp,
-    isActive: n.isCurrent,
+  /** Build left panel list from conversation list (past chats). */
+  const versionHistoryForPanel: LeftPanelVersionNode[] = conversations.list.map((c: ConversationListItem) => ({
+    id: c.id,
+    fileName: c.latestResultFileName ?? c.title,
+    fileType: inferFileTypeFromFileName(c.latestResultFileName ?? c.title),
+    operation: c.toolsUsed?.length
+      ? toolToFriendlyOperation(c.toolsUsed[c.toolsUsed.length - 1] as ToolName)
+      : 'Processed',
+    timestamp: c.lastMessageAt,
+    isActive: c.id === currentConversationId,
   }));
 
-  const activeNodeId = nodes.find((n) => n.isCurrent)?.id ?? null;
+  const activeNodeId = currentConversationId;
+
+  const handleRestoreConversation = useCallback(
+    async (id: string) => {
+      try {
+        const { messages: loadedMessages, latestResult } = await conversations.getMessages(id);
+        setMessages(loadedMessages);
+        setCurrentResult(latestResult);
+        setMode(latestResult ? 'result' : loadedMessages.length ? 'result' : 'empty');
+        setCurrentConversationId(id);
+        if (latestResult) {
+          const conv = conversations.list.find((c) => c.id === id);
+          const lastTool = conv?.toolsUsed?.length ? (conv.toolsUsed[conv.toolsUsed.length - 1] as ToolName) : undefined;
+          addNode(
+            latestResult.fileName,
+            undefined,
+            latestResult.downloadUrl.startsWith('http') ? latestResult.downloadUrl : `${conversations.getApiBase()}${latestResult.downloadUrl}`,
+            lastTool ? toolToFriendlyOperation(lastTool) : undefined
+          );
+        }
+        setWalkthroughSteps(null);
+        setWalkthroughActive(false);
+        setCurrentWalkStep(null);
+      } catch {
+        toast({ variant: 'destructive', title: 'Could not load conversation', description: 'Try again.' });
+      }
+    },
+    [conversations, addNode]
+  );
+
+  const handleClearHistory = useCallback(() => {
+    conversations.clearAll();
+    setCurrentConversationId(null);
+    setMessages([]);
+    setCurrentResult(null);
+    setMode('empty');
+    clearHistory();
+  }, [conversations, clearHistory]);
 
   const handleESignConfirm = useCallback(
     async (placedFields: SignatureField[]) => {
@@ -259,7 +383,34 @@ export default function App() {
         setCurrentResult(res.data);
         setLastTool('esign');
         setMode('result');
-        addNode(res.data.fileName, undefined, res.data.downloadUrl);
+        addNode(res.data.fileName, undefined, res.data.downloadUrl, 'Signed');
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: crypto.randomUUID(),
+            role: 'corner',
+            content: "Here's your signed document.",
+            timestamp: Date.now(),
+            result: res.data,
+          },
+        ]);
+        let cid = currentConversationIdRef.current;
+        if (!cid) {
+          cid = await conversations.createConversation(currentFile.name?.trim()?.slice(0, 200) || 'Signed document');
+          setCurrentConversationId(cid);
+          currentConversationIdRef.current = cid;
+        }
+        await conversations.addMessage(cid, {
+          role: 'corner',
+          content: "Here's your signed document.",
+          toolCall: {
+            toolName: 'esign',
+            resultFileId: res.data.fileId,
+            resultFileName: res.data.fileName,
+            resultMimeType: res.data.mimeType,
+            resultSizeBytes: res.data.sizeBytes,
+          },
+        }).catch(() => {});
         if (res.data.walkthrough && res.data.walkthrough.length > 0) {
           setWalkthroughSteps(res.data.walkthrough);
           setWalkthroughActive(true);
@@ -276,7 +427,7 @@ export default function App() {
         setProcessing(null);
       }
     },
-    [currentFile, addNode, esignPdfUrl]
+    [currentFile, addNode, esignPdfUrl, conversations]
   );
 
   const handleUndo = useCallback(() => {
@@ -337,11 +488,8 @@ export default function App() {
               history={versionHistoryForPanel}
               user={user}
               activeNodeId={activeNodeId}
-              onRestoreVersion={(id) => {
-                const v = nodes.find((n) => n.id === id);
-                if (v) handleVersionRestore(v);
-              }}
-              onClearHistory={clearHistory}
+              onRestoreVersion={handleRestoreConversation}
+              onClearHistory={handleClearHistory}
               onSignIn={() => {
                 setUser({
                   name: 'Guest',
@@ -427,7 +575,7 @@ export default function App() {
             {focusedDocumentView && (currentFile || currentResult) && (
               <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
                 <div
-                  className="flex-shrink-0 flex items-center gap-2 px-4 py-2"
+                  className="shrink-0 flex items-center gap-2 px-4 py-2"
                   style={{
                     borderBottom: '1px solid var(--border)',
                     background: 'var(--white)',

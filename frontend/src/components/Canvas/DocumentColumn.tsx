@@ -2,15 +2,7 @@ import { useState, useEffect } from 'react';
 import { Maximize2 } from 'lucide-react';
 import DocumentViewer from './DocumentViewer';
 import type { ToolResult } from '../../types';
-
-function fileTypeLabel(mimeType: string, fileName: string): string {
-  if (mimeType === 'application/pdf' || fileName.toLowerCase().endsWith('.pdf')) return 'PDF';
-  if (mimeType.startsWith('image/')) return 'Image';
-  if (/\.(docx?|doc)$/i.test(fileName)) return 'Word';
-  if (/\.(xlsx?|xls|csv)$/i.test(fileName)) return 'Excel';
-  if (/\.(pptx?|ppt)$/i.test(fileName)) return 'PowerPoint';
-  return 'File';
-}
+import FormatBadge from '../ui/FormatBadge';
 
 interface Props {
   /** When set, show this result (after processing) */
@@ -55,7 +47,6 @@ export default function DocumentColumn({
   }, [result?.fileId, filePreviewUrl]);
 
   const isPdf = mimeType === 'application/pdf' || fileName.toLowerCase().endsWith('.pdf');
-  const typeLabel = fileTypeLabel(mimeType, fileName);
 
   return (
     <div
@@ -69,7 +60,7 @@ export default function DocumentColumn({
     >
       {/* Toolbar: 40px, filename, type badge, page count, Focus */}
       <div
-        className="flex-shrink-0 flex items-center gap-2 px-3"
+        className="shrink-0 flex items-center gap-2 px-3"
         style={{
           height: 40,
           borderBottom: '1px solid var(--border)',
@@ -84,19 +75,7 @@ export default function DocumentColumn({
         >
           {fileName}
         </span>
-        <span
-          style={{
-            fontSize: 10,
-            padding: '2px 6px',
-            borderRadius: 4,
-            background: 'var(--hover)',
-            color: 'var(--text-muted)',
-            textTransform: 'uppercase',
-            letterSpacing: '0.04em',
-          }}
-        >
-          {typeLabel}
-        </span>
+        <FormatBadge fileName={fileName} />
         {isPdf && totalPages != null && totalPages > 0 && (
           <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
             {totalPages} {totalPages === 1 ? 'page' : 'pages'}

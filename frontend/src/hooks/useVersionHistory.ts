@@ -36,7 +36,7 @@ export function useVersionHistory() {
     saveToStorage(nodes);
   }, [nodes]);
 
-  function addNode(label: string, fileSnapshot?: Blob, downloadUrl?: string): VersionNode {
+  function addNode(label: string, fileSnapshot?: Blob, downloadUrl?: string, operation?: string): VersionNode {
     const newNode: VersionNode = {
       id: crypto.randomUUID(),
       label,
@@ -45,6 +45,7 @@ export function useVersionHistory() {
       fileSnapshot,
       downloadUrl,
       isCurrent: true,
+      operation,
     };
 
     setNodes((prev) => {

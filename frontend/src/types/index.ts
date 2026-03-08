@@ -44,6 +44,8 @@ export interface ParsedIntent {
     options: Record<string, unknown>
   }
   steps: Array<{ tool: ToolName; params: Record<string, unknown>; description: string }>
+  /** Resolved from the filename extension by the backend — display as a static badge, not from Claude. */
+  fileExtension?: string
 }
 
 export interface VersionNode {
@@ -54,6 +56,8 @@ export interface VersionNode {
   fileSnapshot?: Blob
   downloadUrl?: string
   isCurrent: boolean
+  /** Friendly operation label for history (e.g. "PDF → Word", "Compressed", "Signed") */
+  operation?: string
 }
 
 export interface ChatMessage {
@@ -116,4 +120,36 @@ export interface SignatureField {
   height: number  // percent
   label: string
   placed: boolean
+}
+
+/** Conversation list item (API or localStorage). Used for left panel. */
+export interface ConversationListItem {
+  id: string
+  title: string
+  lastMessageAt: Date
+  messageCount: number
+  toolsUsed: string[]
+  latestResultFileId?: string
+  latestResultFileName?: string
+  latestResultMimeType?: string
+}
+
+/** Payload for adding a message (API or hook). Use 'corner' for assistant messages. */
+export interface AddMessagePayload {
+  role: 'user' | 'corner' | 'assistant' | 'system'
+  content: string
+  attachments?: Array<{ fileId: string; fileName: string; mimeType: string; sizeBytes: number }>
+  toolCall?: {
+    toolName: string
+    resultFileId?: string
+    resultFileName?: string
+    resultMimeType?: string
+    resultSizeBytes?: number
+  }
+}
+
+/** Loaded conversation: messages as ChatMessage[] and latest result doc for view. */
+export interface LoadedConversation {
+  messages: ChatMessage[]
+  latestResult: ToolResult | null
 }

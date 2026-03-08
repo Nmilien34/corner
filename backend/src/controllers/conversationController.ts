@@ -103,13 +103,26 @@ export async function addMessage(req: Request, res: Response, next: NextFunction
 
     // Update conversation metadata (denormalized)
     const toolsUsed = [...conversation.toolsUsed];
-    const tc = toolCall as { toolName?: string } | undefined;
+    const tc = toolCall as {
+      toolName?: string;
+      resultFileId?: string;
+      resultFileName?: string;
+      resultMimeType?: string;
+    } | undefined;
     if (tc?.toolName && !toolsUsed.includes(tc.toolName)) toolsUsed.push(tc.toolName);
 
-    await Conversation.updateOne(
-      { _id: id },
-      { lastMessageAt: message.createdAt, $inc: { messageCount: 1 }, toolsUsed },
-    );
+    const update: Record<string, unknown> = {
+      lastMessageAt: message.createdAt,
+      $inc: { messageCount: 1 },
+      toolsUsed,
+    };
+    if (tc?.resultFileId) {
+      update.latestResultFileId = tc.resultFileId;
+      if (tc.resultFileName != null) update.latestResultFileName = tc.resultFileName;
+      if (tc.resultMimeType != null) update.latestResultMimeType = tc.resultMimeType;
+    }
+
+    await Conversation.updateOne({ _id: id }, update);
 
     res.status(201).json(message);
   } catch (err) {

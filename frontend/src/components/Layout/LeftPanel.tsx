@@ -4,15 +4,13 @@ import {
   Trash2,
   RotateCcw,
   GitBranch,
-  FileText,
-  Image,
-  File,
   Settings,
   LogIn,
   LogOut,
   ChevronLeft,
   type LucideIcon,
 } from 'lucide-react';
+import FormatBadge from '../ui/FormatBadge';
 
 export interface VersionNode {
   id: string;
@@ -69,23 +67,43 @@ function getDateLabel(date: Date): string {
   return t.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-function FileTypeIcon({
-  fileType,
-  className,
-}: {
-  fileType: VersionNode['fileType'];
-  className?: string;
-}) {
-  const size = 14;
-  const base = 'var(--text-muted)';
-  const accent = 'var(--accent)';
-  const blue = 'var(--text-muted)'; // "blue-ish muted" - use muted for word
-  const color = fileType === 'pdf' || fileType === 'image' ? accent : fileType === 'word' ? blue : base;
-  if (fileType === 'image') return <Image size={size} strokeWidth={1.5} style={{ color }} className={className} />;
-  if (fileType === 'word') return <FileText size={size} strokeWidth={1.5} style={{ color }} className={className} />;
-  if (fileType === 'pdf') return <FileText size={size} strokeWidth={1.5} style={{ color }} className={className} />;
-  return <File size={size} strokeWidth={1.5} style={{ color }} className={className} />;
+/** Clean backend filenames (e.g. corner_signed_Report.pdf) to a short display title (e.g. Report.pdf). */
+function cleanDisplayTitle(fileName: string): string {
+  let name = fileName.replace(/^corner_+/i, '').trim();
+  const prefixes = [
+    'signed_', 'compressed_', 'merged_', 'rotated_', 'watermarked_', 'unlocked_',
+    'numbered_', 'nobg_', 'resized_', 'bordered_', 'transformed_', 'stub_',
+    'ocr_', 'split_', 'flattened_',
+  ];
+  for (const p of prefixes) {
+    if (name.toLowerCase().startsWith(p)) {
+      name = name.slice(p.length);
+      break;
+    }
+  }
+  return name.replace(/_/g, ' ').trim() || fileName;
 }
+
+/** When operation is missing or "Processed", infer a label from filename for older history entries. */
+function displayOperation(node: { fileName: string; operation: string }): string {
+  if (node.operation && node.operation !== 'Processed') return node.operation;
+  const lower = node.fileName.toLowerCase();
+  if (lower.includes('signed_') || lower.includes('_signed')) return 'Signed';
+  if (lower.includes('compressed')) return 'Compressed';
+  if (lower.includes('merged')) return 'Merged';
+  if (lower.includes('rotated')) return 'Rotated';
+  if (lower.includes('watermarked')) return 'Watermarked';
+  if (lower.includes('unlocked') || lower.includes('password')) return 'Password removed';
+  if (lower.includes('numbered')) return 'Page numbers';
+  if (lower.includes('nobg')) return 'Background removed';
+  if (lower.includes('ocr')) return 'OCR';
+  if (lower.includes('split')) return 'Split';
+  if (/word|docx?/i.test(node.fileName) && /pdf/i.test(node.fileName)) return 'PDF ↔ Word';
+  if (/excel|xlsx?/i.test(node.fileName) && /pdf/i.test(node.fileName)) return 'PDF ↔ Excel';
+  if (/pptx?/i.test(node.fileName) && /pdf/i.test(node.fileName)) return 'PDF ↔ PowerPoint';
+  return 'Processed';
+}
+
 
 export default function LeftPanel({
   isOpen,
@@ -370,28 +388,21 @@ export default function LeftPanel({
                       node.id === activeNodeId ? 'rgba(139,115,85,0.06)' : 'transparent';
                   }}
                 >
-                  <div
-                    className="shrink-0 rounded flex items-center justify-center"
-                    style={{
-                      width: 28,
-                      height: 28,
-                      background: 'var(--hover)',
-                    }}
-                  >
-                    <FileTypeIcon fileType={node.fileType} />
-                  </div>
-                  <div className="min-w-0 flex-1 flex flex-col gap-2">
-                    <div className="flex items-baseline justify-between gap-2">
+                  <FormatBadge fileName={node.fileName} size="sm" />
+                  <div className="min-w-0 flex-1 flex flex-col gap-1">
+                    <div className="flex items-baseline justify-between gap-2 min-w-0">
                       <span
                         className="truncate"
                         style={{
                           fontSize: 12,
                           fontWeight: 500,
                           color: 'var(--text-primary)',
-                          maxWidth: 120,
+                          flex: 1,
+                          minWidth: 0,
                         }}
+                        title={cleanDisplayTitle(node.fileName)}
                       >
-                        {node.fileName}
+                        {cleanDisplayTitle(node.fileName)}
                       </span>
                       <span
                         className="shrink-0"
@@ -401,7 +412,7 @@ export default function LeftPanel({
                       </span>
                     </div>
                     <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                      {node.operation}
+                      {displayOperation(node)}
                     </span>
                   </div>
                 </button>

@@ -1,23 +1,9 @@
-import { useRef, useState, type KeyboardEvent } from 'react';
-import { Paperclip, ArrowUp, FileText, Image, File, FileSpreadsheet, Presentation, X } from 'lucide-react';
+import { useRef, useState, useEffect, type KeyboardEvent } from 'react';
+import { Paperclip, ArrowUp, X } from 'lucide-react';
 import type { ChatMessage } from '../../types';
 import ChatMessageComp from './ChatMessage';
-
-function getFileIcon(file: File) {
-  const name = file.name.toLowerCase();
-  const type = file.type || '';
-  // PDF
-  if (name.endsWith('.pdf') || type.includes('pdf')) return FileText;
-  // Word
-  if (/\.(docx?|doc)$/.test(name) || type.includes('word') || type.includes('document')) return FileText;
-  // Excel / spreadsheet
-  if (/\.(xlsx?|xls|csv)$/.test(name) || type.includes('sheet') || type.includes('excel') || type.includes('spreadsheet')) return FileSpreadsheet;
-  // PowerPoint / presentation
-  if (/\.(pptx?|ppt)$/.test(name) || type.includes('presentation') || type.includes('powerpoint')) return Presentation;
-  // Images
-  if (/\.(png|jpe?g|gif|webp|heic|bmp|svg)$/.test(name) || type.startsWith('image/')) return Image;
-  return File;
-}
+import FormatBadge from '../ui/FormatBadge';
+import { getFileFormatInfo, getConversionWarning } from '../../lib/fileFormat';
 
 interface Props {
   messages: ChatMessage[];
@@ -35,8 +21,18 @@ interface Props {
 export default function ChatFloat({ messages, currentFile, onSend, disabled, floatUp, onFocus, onBlur, onClearCurrentFile }: Props) {
   const [text, setText] = useState('');
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
+  const [conversionWarning, setConversionWarning] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    const file = currentFile ?? attachedFiles[0] ?? null;
+    if (file) {
+      setConversionWarning(getConversionWarning(getFileFormatInfo(file.name)));
+    } else {
+      setConversionWarning(null);
+    }
+  }, [currentFile?.name, attachedFiles.length]);
 
   const recentMessages = messages.slice(-3);
   const canSend = !!(text.trim() || attachedFiles.length > 0 || currentFile) && !disabled;
@@ -137,17 +133,14 @@ export default function ChatFloat({ messages, currentFile, onSend, disabled, flo
                 className="flex items-center gap-2 shrink-0 rounded-full transition-colors duration-150"
                 style={{
                   height: 32,
-                  paddingLeft: 12,
+                  paddingLeft: 8,
                   paddingRight: 6,
                   background: 'var(--hover)',
                   border: '1px solid var(--border)',
-                  maxWidth: 200,
+                  maxWidth: 220,
                 }}
               >
-                {(() => {
-                  const Icon = getFileIcon(currentFile);
-                  return <Icon size={14} strokeWidth={1.5} style={{ color: 'var(--accent)', flexShrink: 0 }} />;
-                })()}
+                <FormatBadge fileName={currentFile.name} size="sm" />
                 <span className="truncate text-xs font-medium" style={{ color: 'var(--text-primary)' }}>
                   {currentFile.name}
                 </span>
@@ -155,7 +148,7 @@ export default function ChatFloat({ messages, currentFile, onSend, disabled, flo
                   <button
                     type="button"
                     onClick={onClearCurrentFile}
-                    className="flex items-center justify-center w-6 h-6 rounded-full shrink-0 transition-colors duration-150 hover:bg-[var(--border)]"
+                    className="flex items-center justify-center w-6 h-6 rounded-full shrink-0 transition-colors duration-150 hover:bg-(--border)"
                     style={{ color: 'var(--text-muted)' }}
                     aria-label="Remove file"
                   >
@@ -170,24 +163,21 @@ export default function ChatFloat({ messages, currentFile, onSend, disabled, flo
                 className="flex items-center gap-2 shrink-0 rounded-full transition-colors duration-150"
                 style={{
                   height: 32,
-                  paddingLeft: 12,
+                  paddingLeft: 8,
                   paddingRight: 6,
                   background: 'var(--hover)',
                   border: '1px solid var(--border)',
-                  maxWidth: 200,
+                  maxWidth: 220,
                 }}
               >
-                {(() => {
-                  const Icon = getFileIcon(f);
-                  return <Icon size={14} strokeWidth={1.5} style={{ color: 'var(--accent)', flexShrink: 0 }} />;
-                })()}
+                <FormatBadge fileName={f.name} size="sm" />
                 <span className="truncate text-xs font-medium" style={{ color: 'var(--text-primary)' }}>
                   {f.name}
                 </span>
                 <button
                   type="button"
                   onClick={() => setAttachedFiles((prev) => prev.filter((_, j) => j !== i))}
-                  className="flex items-center justify-center w-6 h-6 rounded-full shrink-0 transition-colors duration-150 hover:bg-[var(--border)]"
+                  className="flex items-center justify-center w-6 h-6 rounded-full shrink-0 transition-colors duration-150 hover:bg-(--border)"
                   style={{ color: 'var(--text-muted)' }}
                   aria-label="Remove file"
                 >
@@ -195,6 +185,60 @@ export default function ChatFloat({ messages, currentFile, onSend, disabled, flo
                 </button>
               </div>
             ))}
+            {conversionWarning && (
+              <div
+                className="w-full"
+                style={{
+                  padding: '8px 10px',
+                  background: '#FFFBEB',
+                  border: '1px solid #FCD34D',
+                  borderRadius: 6,
+                  fontSize: 11,
+                  color: '#92400E',
+                  fontFamily: 'Geist, sans-serif',
+                }}
+              >
+                {conversionWarning}
+                <div className="flex gap-2" style={{ marginTop: 6 }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const file = currentFile ?? attachedFiles[0];
+                      if (file) onSend(`Convert ${file.name} to PDF`, []);
+                      setConversionWarning(null);
+                    }}
+                    style={{
+                      padding: '2px 8px',
+                      borderRadius: 4,
+                      border: '1px solid #92400E',
+                      background: 'none',
+                      color: '#92400E',
+                      fontSize: 11,
+                      cursor: 'pointer',
+                      fontFamily: 'Geist, sans-serif',
+                    }}
+                  >
+                    Convert automatically
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConversionWarning(null)}
+                    style={{
+                      padding: '2px 8px',
+                      borderRadius: 4,
+                      border: '1px solid var(--border)',
+                      background: 'none',
+                      color: '#92400E',
+                      fontSize: 11,
+                      cursor: 'pointer',
+                      fontFamily: 'Geist, sans-serif',
+                    }}
+                  >
+                    Skip for now
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

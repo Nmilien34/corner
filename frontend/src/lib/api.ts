@@ -4,10 +4,11 @@ import type { ParsedIntent, ToolResult } from '../types';
 export const api = {
   parseIntent: (
     message: string,
-    fileContext?: { name: string; type: string; size: number }
+    fileContext?: { name: string; type: string; size: number },
+    formatMeta?: { fileFormat: string; fileCategory: string; canOCR: boolean; isImage: boolean }
   ) =>
     axios
-      .post<ParsedIntent>('/api/parse', { message, fileContext })
+      .post<ParsedIntent>('/api/parse', { message, fileContext, ...formatMeta })
       .then((r) => r.data),
 
   executeTool: (

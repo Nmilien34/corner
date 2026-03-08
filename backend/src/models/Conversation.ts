@@ -9,19 +9,25 @@ export interface IConversation extends Document {
   pinned: boolean;
   toolsUsed: string[];
   messageCount: number;
+  latestResultFileId?: string;
+  latestResultFileName?: string;
+  latestResultMimeType?: string;
   createdAt: Date;
   updatedAt: Date;
 }
 
 const schema = new Schema<IConversation>(
   {
-    userId:        { type: Schema.Types.ObjectId, ref: 'User', required: true },
-    title:         { type: String, required: true, trim: true, maxlength: 200, default: 'New Conversation' },
-    lastMessageAt: { type: Date, default: Date.now },
-    archived:      { type: Boolean, default: false },
-    pinned:        { type: Boolean, default: false },
-    toolsUsed:     [{ type: String }],
-    messageCount:  { type: Number, default: 0, min: 0 },
+    userId:               { type: Schema.Types.ObjectId, ref: 'User', required: true },
+    title:                { type: String, required: true, trim: true, maxlength: 200, default: 'New Conversation' },
+    lastMessageAt:        { type: Date, default: Date.now },
+    archived:              { type: Boolean, default: false },
+    pinned:                { type: Boolean, default: false },
+    toolsUsed:             [{ type: String }],
+    messageCount:         { type: Number, default: 0, min: 0 },
+    latestResultFileId:   { type: String },
+    latestResultFileName: { type: String },
+    latestResultMimeType: { type: String },
   },
   { timestamps: true },
 );
