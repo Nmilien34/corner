@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useDropzone } from 'react-dropzone';
 import axios from 'axios';
 import Topbar from './components/Layout/Topbar';
@@ -16,11 +17,16 @@ import DocumentViewer from './components/Canvas/DocumentViewer';
 import DocCanvas from './components/Canvas/DocCanvas';
 import ESignCanvas from './components/Canvas/ESignCanvas';
 import AiWalkthrough from './components/Walkthrough/AiWalkthrough';
-import SettingsModal from './components/Layout/SettingsModal';
+import SettingsPage from './pages/SettingsPage';
+import FoldersPage from './pages/FoldersPage';
+import FolderDetailPage from './pages/FolderDetailPage';
+import ConversationListPage from './pages/ConversationListPage';
 import OnboardingModal from './components/Onboarding/OnboardingModal';
 import { useIntent } from './hooks/useIntent';
 import { useVersionHistory } from './hooks/useVersionHistory';
 import { useConversations } from './hooks/useConversations';
+import { useFolders } from './hooks/useFolders';
+import { useAuth } from './hooks/useAuth';
 import { Toaster } from './components/ui/toaster';
 import { toast } from './hooks/use-toast';
 import type {
@@ -80,34 +86,50 @@ function toolToFriendlyOperation(tool: ToolName): string {
     extract_text: 'Text extracted',
     extract_images: 'Images extracted',
     extract_tables: 'Tables extracted',
+    summarize_document: 'Summary',
+    generate_study_questions: 'Study questions',
+    extract_key_terms: 'Key terms',
+    generate_citation: 'Citation',
   };
   return map[tool] ?? 'Processed';
 }
 
 export default function App() {
   const [mode, setMode] = useState<AppMode>('empty');
-  const [currentFile, setCurrentFile] = useState<File | null>(null);
+  const [currentFiles, setCurrentFiles] = useState<File[]>([]);
+  const currentFile = currentFiles[0] ?? null;
   const [currentResult, setCurrentResult] = useState<ToolResult | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [processing, setProcessing] = useState<ProcessingState | null>(null);
+  const [planUnderstanding, setPlanUnderstanding] = useState<string | null>(null);
   const [rightOpen, setRightOpen] = useState(false); // default collapsed; opposite of left panel
   const [panelSettings, setPanelSettings] = useState<RightPanelSettings>({});
   const [lastTool, setLastTool] = useState<ToolName | null>(null);
-  const [showOnboarding] = useState(
-    () => !localStorage.getItem('corner:onboarding-complete')
-  );
-  const [onboardingVisible, setOnboardingVisible] = useState(showOnboarding);
+  const [onboardingVisible, setOnboardingVisible] = useState(false);
   const [inputFocused, setInputFocused] = useState(false);
   const [leftPanelOpen, setLeftPanelOpen] = useState(true); // default expanded; user can collapse
   const [activeNav, setActiveNav] = useState<'recent' | 'starred' | 'trash'>('recent');
   const [canvasViewMode, setCanvasViewMode] = useState(true); // true = canvas with all frames, false = single doc view
   const [focusedDocumentView, setFocusedDocumentView] = useState(false); // true = full-width doc (State 3), no chat column
   const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null); // object URL for currentFile preview in split
-  const [user, setUser] = useState<LeftPanelUser | null>(null);
+  const auth = useAuth();
+  const leftPanelUser: LeftPanelUser | null = auth.user
+    ? { name: auth.user.displayName, email: auth.user.email, plan: auth.user.plan }
+    : null;
   const [walkthroughSteps, setWalkthroughSteps] = useState<WalkthroughStep[] | null>(null);
   const [walkthroughActive, setWalkthroughActive] = useState(false);
   const [currentWalkStep, setCurrentWalkStep] = useState<WalkthroughStep | null>(null);
-  const [settingsOpen, setSettingsOpen] = useState(false);
+
+  const location = useLocation();
+  const navigate = useNavigate();
+  const isSettingsRoute = location.pathname === '/settings';
+  const folderDetailMatch = location.pathname.match(/^\/folders\/([^/]+)$/);
+  const folderIdFromPath = folderDetailMatch?.[1] ?? null;
+  const isFoldersRoute = location.pathname === '/folders';
+  const isFolderDetailRoute = folderIdFromPath != null;
+  const isRecentRoute = location.pathname === '/recent';
+  const isStarredRoute = location.pathname === '/starred';
+  const isTrashRoute = location.pathname === '/trash';
 
   // E-sign interactive state
   const [esignFields, setEsignFields] = useState<SignatureField[]>([]);
@@ -117,8 +139,17 @@ export default function App() {
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
   const currentConversationIdRef = useRef<string | null>(null);
   const conversations = useConversations({
-    isSignedIn: !!user,
-    getToken: () => null, // TODO: wire real auth token when available
+    isSignedIn: !!auth.user,
+    getToken: auth.getToken,
+  });
+  const conversationIdsInFolder = useCallback(
+    (folderId: string) =>
+      conversations.list.filter((c) => c.folderId === folderId).map((c) => c.id),
+    [conversations.list]
+  );
+  const foldersApi = useFolders({
+    updateConversation: conversations.updateConversation,
+    conversationIdsInFolder,
   });
   useEffect(() => {
     currentConversationIdRef.current = currentConversationId;
@@ -166,31 +197,53 @@ export default function App() {
   );
 
   // Intent hook wires parse → execute → result
-  const { execute: executeIntent, executeWithOrchestrator } = useIntent({
+  const { execute: executeIntent, executeWithOrchestrator, stop: stopProcessing } = useIntent({
     onProcessingChange: setProcessing,
+    onPlanUnderstanding: (text) => setPlanUnderstanding(text),
     onResult: (result, tool) => {
-      setCurrentResult(result);
-      setLastTool(tool);
-      setMode('result');
-      setRightOpen(true);
-      addNode(result.fileName, undefined, result.downloadUrl, toolToFriendlyOperation(tool));
-      setCanvasViewMode(true);
+      const isStudyTool = ['summarize_document', 'generate_study_questions', 'extract_key_terms'].includes(tool);
+      const isAudioTool =
+        tool === 'transcribe_audio' ||
+        tool === 'extract_audio' ||
+        tool === 'remove_silence' ||
+        tool === 'convert_audio' ||
+        tool === 'audio_to_pdf';
+      // Default: keep the original upload visible on the left for *all* tools (except audio),
+      // so the user never loses context of what they uploaded.
+      const keepSourceDocOnLeft = !isAudioTool;
       const completionMessage = (result as ToolResult & { message?: string }).message ?? "Here's your processed document.";
+      const bodyContent = isStudyTool && result.textContent ? result.textContent : completionMessage;
+
+      if (!keepSourceDocOnLeft) {
+        setCurrentResult(result);
+        setMode('result');
+        addNode(result.fileName, undefined, result.downloadUrl, toolToFriendlyOperation(tool));
+        setCanvasViewMode(true);
+      } else if (!isStudyTool) {
+        // For conversions, still add the output to history (without switching the left viewer).
+        addNode(result.fileName, undefined, result.downloadUrl, toolToFriendlyOperation(tool));
+        setMode('result');
+      }
+      setLastTool(tool);
+      // Keep tools panel closed so the answer and result/export live only in the chat thread
+
       setMessages((prev) => [
         ...prev,
         {
           id: crypto.randomUUID(),
           role: 'corner',
-          content: completionMessage,
+          content: bodyContent,
           timestamp: Date.now(),
           result,
+          ...(isStudyTool && { toolName: tool }),
         },
       ]);
+      setPlanUnderstanding(null);
       const cid = currentConversationIdRef.current;
       if (cid) {
         conversations.addMessage(cid, {
           role: 'corner',
-          content: completionMessage,
+          content: bodyContent,
           toolCall: {
             toolName: tool,
             resultFileId: result.fileId,
@@ -215,18 +268,24 @@ export default function App() {
     onEsignInteractive: handleEsignInteractive,
   });
 
-  // Canvas-wide drop zone
+  // Canvas-wide drop zone — accept multiple files
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop: (files) => {
       if (!files.length) return;
-      const file = files[0];
-      setCurrentFile(file);
+      if (!auth.user) {
+        setOnboardingVisible(true);
+        return;
+      }
+      setCurrentFiles(files);
+      const label = files.length === 1
+        ? `[${files[0].name}] loaded. What would you like to do with it?`
+        : `${files.length} files loaded. What would you like to do with them?`;
       setMessages((prev) => [
         ...prev,
         {
           id: crypto.randomUUID(),
           role: 'system',
-          content: `[${file.name}] loaded. What would you like to do with it?`,
+          content: label,
           timestamp: Date.now(),
         },
       ]);
@@ -237,17 +296,24 @@ export default function App() {
 
   const handleSend = useCallback(
     (text: string, files: File[] = []) => {
-      const allFiles = files.length > 0 ? files : currentFile ? [currentFile] : [];
-      const isFirstFile = files.length > 0 && !currentFile;
-      if (files.length > 0) setCurrentFile(files[0]);
+      if (!auth.user) {
+        setOnboardingVisible(true);
+        return;
+      }
+      const allFiles = files.length > 0 ? files : currentFiles;
+      const isFirstFile = files.length > 0 && currentFiles.length === 0;
+      if (files.length > 0) setCurrentFiles(files);
 
       setMessages((prev) => {
         const next = [...prev];
-        if (isFirstFile && files[0]) {
+        if (isFirstFile && allFiles.length > 0) {
+          const label = allFiles.length === 1
+            ? `[${allFiles[0].name}] loaded. What would you like to do with it?`
+            : `${allFiles.length} files loaded. What would you like to do with them?`;
           next.push({
             id: crypto.randomUUID(),
             role: 'system',
-            content: `[${files[0].name}] loaded. What would you like to do with it?`,
+            content: label,
             timestamp: Date.now(),
           });
         }
@@ -264,7 +330,8 @@ export default function App() {
       (async () => {
         let cid = currentConversationIdRef.current;
         if (!cid) {
-          const title = (files[0] ?? currentFile)?.name?.trim() || 'New Conversation';
+          const fileName = (files[0] ?? currentFile)?.name?.trim();
+          const title = fileName || text.trim().slice(0, 80) || 'New Conversation';
           cid = await conversations.createConversation(title.slice(0, 200));
           setCurrentConversationId(cid);
           currentConversationIdRef.current = cid;
@@ -273,10 +340,19 @@ export default function App() {
       })().catch(() => {});
 
       setMode('processing');
+      setPlanUnderstanding(null);
       executeWithOrchestrator(text, allFiles);
     },
-    [currentFile, conversations, executeWithOrchestrator]
+    [currentFiles, conversations, executeWithOrchestrator]
   );
+
+  // When user stops processing, leave "processing" mode so UI returns to idle
+  useEffect(() => {
+    if (processing === null && mode === 'processing') {
+      // If a file is loaded, keep the workspace in "result" (split view) so the doc doesn't collapse.
+      setMode((currentFile || currentResult) ? 'result' : 'empty');
+    }
+  }, [processing, mode, currentResult]);
 
   const handleVersionRestore = useCallback((v: VersionNode) => {
     setCurrentResult({
@@ -297,17 +373,25 @@ export default function App() {
     return 'other';
   }
 
-  /** Build left panel list from conversation list (past chats). */
-  const versionHistoryForPanel: LeftPanelVersionNode[] = conversations.list.map((c: ConversationListItem) => ({
-    id: c.id,
-    fileName: c.latestResultFileName ?? c.title,
-    fileType: inferFileTypeFromFileName(c.latestResultFileName ?? c.title),
-    operation: c.toolsUsed?.length
-      ? toolToFriendlyOperation(c.toolsUsed[c.toolsUsed.length - 1] as ToolName)
-      : 'Processed',
-    timestamp: c.lastMessageAt,
-    isActive: c.id === currentConversationId,
-  }));
+  /** Build left panel list from conversation list (past chats), filtered by activeNav. */
+  const versionHistoryForPanel: LeftPanelVersionNode[] = conversations.list
+    .filter((c: ConversationListItem) => {
+      if (activeNav === 'starred') return c.pinned && !c.archived;
+      if (activeNav === 'trash') return c.archived;
+      return !c.archived; // 'recent'
+    })
+    .map((c: ConversationListItem) => ({
+      id: c.id,
+      fileName: c.latestResultFileName ?? c.title,
+      fileType: inferFileTypeFromFileName(c.latestResultFileName ?? c.title),
+      operation: c.toolsUsed?.length
+        ? toolToFriendlyOperation(c.toolsUsed[c.toolsUsed.length - 1] as ToolName)
+        : 'Processed',
+      timestamp: c.lastMessageAt,
+      isActive: c.id === currentConversationId,
+      pinned: c.pinned,
+      folderId: c.folderId,
+    }));
 
   const activeNodeId = currentConversationId;
 
@@ -315,17 +399,31 @@ export default function App() {
     async (id: string) => {
       try {
         const { messages: loadedMessages, latestResult } = await conversations.getMessages(id);
+        const conv = conversations.list.find((c) => c.id === id);
+        // Use conversation list metadata when getMessages didn't return a result (e.g. API shape)
+        const result =
+          latestResult ??
+          (conv?.latestResultFileId && conv?.latestResultFileName && conv?.latestResultMimeType
+            ? {
+                fileId: conv.latestResultFileId,
+                downloadUrl: `${conversations.getApiBase?.() ?? ''}/api/file/${conv.latestResultFileId}`,
+                fileName: conv.latestResultFileName,
+                mimeType: conv.latestResultMimeType,
+                sizeBytes: 0,
+              }
+            : null);
         setMessages(loadedMessages);
-        setCurrentResult(latestResult);
-        setMode(latestResult ? 'result' : loadedMessages.length ? 'result' : 'empty');
+        setCurrentResult(result);
+        setMode(result ? 'result' : loadedMessages.length ? 'result' : 'empty');
         setCurrentConversationId(id);
-        if (latestResult) {
-          const conv = conversations.list.find((c) => c.id === id);
+        setFocusedDocumentView(false); // ensure split view: doc left, conversation right
+        setCanvasViewMode(false); // show doc + chat split, not the PDF cards view
+        if (result) {
           const lastTool = conv?.toolsUsed?.length ? (conv.toolsUsed[conv.toolsUsed.length - 1] as ToolName) : undefined;
           addNode(
-            latestResult.fileName,
+            result.fileName,
             undefined,
-            latestResult.downloadUrl.startsWith('http') ? latestResult.downloadUrl : `${conversations.getApiBase()}${latestResult.downloadUrl}`,
+            result.downloadUrl.startsWith('http') ? result.downloadUrl : `${conversations.getApiBase?.() ?? ''}${result.downloadUrl}`,
             lastTool ? toolToFriendlyOperation(lastTool) : undefined
           );
         }
@@ -347,6 +445,30 @@ export default function App() {
     setMode('empty');
     clearHistory();
   }, [conversations, clearHistory]);
+
+  const handleDeleteConversation = useCallback(async (id: string) => {
+    await conversations.deleteConversation(id).catch(() => {});
+    if (id === currentConversationId) {
+      setCurrentConversationId(null);
+      setMessages([]);
+      setCurrentResult(null);
+      setMode('empty');
+    }
+  }, [conversations, currentConversationId]);
+
+  const handleStarConversation = useCallback(async (id: string, pinned: boolean) => {
+    await conversations.updateConversation(id, { pinned }).catch(() => {});
+  }, [conversations]);
+
+  const handleArchiveConversation = useCallback(async (id: string, archived: boolean) => {
+    await conversations.updateConversation(id, { archived }).catch(() => {});
+    if (archived && id === currentConversationId) {
+      setCurrentConversationId(null);
+      setMessages([]);
+      setCurrentResult(null);
+      setMode('empty');
+    }
+  }, [conversations, currentConversationId]);
 
   const handleESignConfirm = useCallback(
     async (placedFields: SignatureField[]) => {
@@ -481,35 +603,97 @@ export default function App() {
             fileName={currentResult?.fileName}
             showOpenLeftPanel={!leftPanelOpen}
             onOpenLeftPanel={() => setLeftPanelOpen(true)}
+            currentConversationId={currentConversationId}
+            currentFolderId={
+              currentConversationId
+                ? conversations.list.find((c) => c.id === currentConversationId)?.folderId
+                : undefined
+            }
+            folders={foldersApi.folders}
+            onAssignToFolder={foldersApi.assignConversationToFolder}
           />
           <div className="flex flex-1 min-h-0 overflow-hidden">
             <LeftPanel
               isOpen={leftPanelOpen}
               history={versionHistoryForPanel}
-              user={user}
+              user={leftPanelUser}
               activeNodeId={activeNodeId}
               onRestoreVersion={handleRestoreConversation}
               onClearHistory={handleClearHistory}
-              onSignIn={() => {
-                setUser({
-                  name: 'Guest',
-                  email: 'guest@example.com',
-                  plan: 'free',
-                });
+              onSignIn={() => setOnboardingVisible(true)}
+              onSignOut={() => auth.logout()}
+              onOpenSettings={() => navigate('/settings')}
+              onNewFlow={() => {
+                navigate('/');
+                setCurrentConversationId(null);
+                setMessages([]);
+                setCurrentFiles([]);
+                setCurrentResult(null);
+                setMode('empty');
+                setProcessing(null);
+                setFocusedDocumentView(false);
               }}
-              onSignOut={() => setUser(null)}
-              onOpenSettings={() => setSettingsOpen(true)}
               onNavSelect={(item) => {
                 setActiveNav(item);
+                navigate(`/${item}`);
               }}
               activeNav={activeNav}
               onToggle={() => setLeftPanelOpen((p) => !p)}
+              onDeleteConversation={handleDeleteConversation}
+              onStarConversation={handleStarConversation}
+              onArchiveConversation={handleArchiveConversation}
+              onOpenFolders={() => navigate('/folders')}
             />
 
-            {/* Canvas — surface first, content on top */}
+            {/* Canvas or Settings — surface first, content on top */}
             <main
           className="flex-1 flex flex-col relative overflow-hidden canvas-surface"
         >
+          {isFolderDetailRoute && folderIdFromPath ? (
+            <FolderDetailPage
+              folderName={
+                foldersApi.folders.find((f) => f.id === folderIdFromPath)?.name ?? 'Folder'
+              }
+              conversations={conversations.list.filter((c) => c.folderId === folderIdFromPath)}
+              onRestore={handleRestoreConversation}
+            />
+          ) : isRecentRoute ? (
+            <ConversationListPage
+              filter="recent"
+              conversations={conversations.list.filter((c) => !c.archived)}
+              onRestore={handleRestoreConversation}
+            />
+          ) : isStarredRoute ? (
+            <ConversationListPage
+              filter="starred"
+              conversations={conversations.list.filter((c) => c.pinned && !c.archived)}
+              onRestore={handleRestoreConversation}
+            />
+          ) : isTrashRoute ? (
+            <ConversationListPage
+              filter="trash"
+              conversations={conversations.list.filter((c) => c.archived)}
+              onRestore={handleRestoreConversation}
+            />
+          ) : isFoldersRoute ? (
+            <FoldersPage
+              folders={foldersApi.folders}
+              createFolder={foldersApi.createFolder}
+              renameFolder={foldersApi.renameFolder}
+              deleteFolder={foldersApi.deleteFolder}
+              conversationCountByFolderId={(folderId) =>
+                conversations.list.filter((c) => c.folderId === folderId).length
+              }
+            />
+          ) : isSettingsRoute ? (
+            <SettingsPage
+              settings={panelSettings}
+              onSettingsChange={(patch) =>
+                setPanelSettings((prev) => ({ ...prev, ...patch }))
+              }
+            />
+          ) : (
+          <>
           {/* Thin progress line at top */}
           {processing && (
             <div
@@ -522,27 +706,7 @@ export default function App() {
             />
           )}
 
-          {/* Multi-step intent label */}
-          {processing?.stepTotal && (
-            <div
-              className="absolute z-10 flex items-center gap-2 px-4 py-2 rounded-xl"
-              style={{
-                bottom: 88,
-                left: 32,
-                right: 32,
-                background: 'var(--white)',
-                border: '1px solid var(--border)',
-                fontSize: '12px',
-                color: 'var(--text-muted)',
-              }}
-            >
-              <div
-                className="w-2 h-2 rounded-full animate-pulse shrink-0"
-                style={{ background: 'var(--accent)' }}
-              />
-              Step {processing.stepCurrent} of {processing.stepTotal}: {processing.label}
-            </div>
-          )}
+          {/* (removed) Multi-step floating label — progress is shown in chat + top thin bar */}
 
           {/* Canvas content: split (doc | chat), focused doc, or single-column empty/processing/result */}
           <div className="flex-1 flex min-h-0 overflow-hidden relative">
@@ -565,8 +729,13 @@ export default function App() {
                   onSend={handleSend}
                   onClearThread={() => setMessages([])}
                   disabled={mode === 'processing'}
-                  currentFile={currentFile}
-                  onClearCurrentFile={currentFile ? () => setCurrentFile(null) : undefined}
+                  onStop={() => {
+                    setPlanUnderstanding(null);
+                    stopProcessing();
+                  }}
+                  planUnderstanding={planUnderstanding}
+                  currentFiles={currentFiles}
+                  onClearCurrentFiles={currentFiles.length > 0 ? () => setCurrentFiles([]) : undefined}
                 />
               </>
             )}
@@ -730,14 +899,20 @@ export default function App() {
           {!showSplit && (
           <ChatFloat
             messages={messages}
-            currentFile={currentFile}
+            currentFiles={currentFiles}
             onSend={handleSend}
             disabled={mode === 'processing'}
+            onStop={() => {
+              setPlanUnderstanding(null);
+              stopProcessing();
+            }}
             floatUp={(mode === 'empty' || mode === 'clarifying') && inputFocused}
             onFocus={() => setInputFocused(true)}
             onBlur={() => setInputFocused(false)}
-            onClearCurrentFile={currentFile ? () => setCurrentFile(null) : undefined}
+            onClearCurrentFiles={currentFiles.length > 0 ? () => setCurrentFiles([]) : undefined}
           />
+          )}
+          </>
           )}
         </main>
           </div>
@@ -753,7 +928,7 @@ export default function App() {
             const prompt = settings && Object.keys(settings).length > 0
               ? `use the ${tool} tool with settings: ${JSON.stringify(settings)}`
               : `use the ${tool} tool`;
-            executeIntent(prompt, currentFile ?? undefined);
+            executeIntent(prompt, currentFiles[0] ?? undefined);
           }}
           onOpenOnboarding={() => setOnboardingVisible(true)}
           onSaveTemplate={() => console.log('Save template')}
@@ -762,20 +937,17 @@ export default function App() {
         />
       </div>
 
-      <SettingsModal
-        open={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
-        settings={panelSettings}
-        onSettingsChange={(patch) =>
-          setPanelSettings((prev) => ({
-            ...prev,
-            ...patch,
-          }))
-        }
-      />
-
       {onboardingVisible && (
-        <OnboardingModal onComplete={() => setOnboardingVisible(false)} />
+        <OnboardingModal
+          onComplete={() => {
+            setOnboardingVisible(false);
+            if (auth.user) {
+              toast({ title: `Welcome, ${auth.user.displayName}!` });
+            }
+          }}
+          onRegister={auth.register}
+          onLogin={auth.login}
+        />
       )}
 
       <Toaster />

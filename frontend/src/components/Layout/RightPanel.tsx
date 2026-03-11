@@ -51,6 +51,8 @@ import {
   ClipboardEdit,
   XCircle,
   Trash2,
+  Mic,
+  VolumeX,
   type LucideIcon,
 } from 'lucide-react';
 import type { ToolResult } from '../../types';
@@ -397,6 +399,20 @@ export interface RightPanelSettings {
   allowFormFill?: boolean;
   passwordExpiry?: string;
   removeAllSecurity?: boolean;
+  // Audio
+  audioLanguage?: string;
+  audioOutputFormat?: 'plain' | 'timestamped' | 'srt' | 'vtt';
+  speakerDiarization?: boolean;
+  punctuation?: boolean;
+  audioStartTime?: string;
+  audioEndTime?: string;
+  audioExtractFormat?: 'mp3' | 'wav' | 'aac' | 'ogg' | 'flac';
+  silenceThreshold?: number;
+  minSilenceLength?: number;
+  audioConvertFormat?: 'mp3' | 'wav' | 'aac' | 'ogg' | 'flac' | 'm4a';
+  audioBitrate?: '64k' | '128k' | '192k' | '320k';
+  includeTimestamps?: boolean;
+  includeMetadataHeader?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -1730,6 +1746,193 @@ function buildToolsList(onOpenOnboarding?: () => void): { id: string; label: str
       ],
     },
     {
+      id: 'audio',
+      label: 'Audio',
+      icon: Mic,
+      tools: [
+        {
+          id: 'transcribe_audio',
+          label: 'Transcribe Audio',
+          icon: FileText,
+          hasSettings: true,
+          renderSettings: ({ settings, onSettingsChange }) => (
+            <>
+              <Select
+                label="Language"
+                value={settings.audioLanguage ?? 'auto'}
+                onChange={(v) => onSettingsChange({ audioLanguage: v })}
+                options={[
+                  { value: 'auto', label: 'Auto-detect' },
+                  { value: 'en', label: 'English' },
+                  { value: 'es', label: 'Spanish' },
+                  { value: 'fr', label: 'French' },
+                  { value: 'de', label: 'German' },
+                  { value: 'pt', label: 'Portuguese' },
+                  { value: 'zh', label: 'Chinese' },
+                  { value: 'ja', label: 'Japanese' },
+                  { value: 'ko', label: 'Korean' },
+                ]}
+              />
+              <SegmentedControl
+                label="Output format"
+                value={settings.audioOutputFormat ?? 'timestamped'}
+                onChange={(v) => onSettingsChange({ audioOutputFormat: v as RightPanelSettings['audioOutputFormat'] })}
+                options={[
+                  { value: 'timestamped', label: 'Timestamped' },
+                  { value: 'plain', label: 'Plain' },
+                  { value: 'srt', label: 'SRT' },
+                  { value: 'vtt', label: 'VTT' },
+                ]}
+              />
+              <Toggle
+                label="Speaker detection"
+                sublabel="Identify different speakers"
+                value={settings.speakerDiarization ?? false}
+                onChange={(v) => onSettingsChange({ speakerDiarization: v })}
+              />
+              <Toggle
+                label="Punctuation"
+                value={settings.punctuation ?? true}
+                onChange={(v) => onSettingsChange({ punctuation: v })}
+              />
+            </>
+          ),
+        },
+        {
+          id: 'extract_audio',
+          label: 'Extract Audio',
+          icon: Scissors,
+          hasSettings: true,
+          renderSettings: ({ settings, onSettingsChange }) => (
+            <>
+              <TextInput
+                label="Start time"
+                value={settings.audioStartTime ?? ''}
+                placeholder="00:00:00"
+                onChange={(v) => onSettingsChange({ audioStartTime: v })}
+              />
+              <TextInput
+                label="End time"
+                value={settings.audioEndTime ?? ''}
+                placeholder="00:01:30"
+                onChange={(v) => onSettingsChange({ audioEndTime: v })}
+              />
+              <SegmentedControl
+                label="Output format"
+                value={settings.audioExtractFormat ?? 'mp3'}
+                onChange={(v) => onSettingsChange({ audioExtractFormat: v as RightPanelSettings['audioExtractFormat'] })}
+                options={[
+                  { value: 'mp3', label: 'MP3' },
+                  { value: 'wav', label: 'WAV' },
+                  { value: 'aac', label: 'AAC' },
+                  { value: 'ogg', label: 'OGG' },
+                ]}
+              />
+            </>
+          ),
+        },
+        {
+          id: 'remove_silence',
+          label: 'Remove Silence',
+          icon: VolumeX,
+          hasSettings: true,
+          renderSettings: ({ settings, onSettingsChange }) => (
+            <>
+              <Slider
+                label="Silence threshold (dB)"
+                value={settings.silenceThreshold ?? -40}
+                min={-80}
+                max={-10}
+                step={1}
+                onChange={(v) => onSettingsChange({ silenceThreshold: v })}
+                formatValue={(v) => `${v} dB`}
+              />
+              <Slider
+                label="Min silence length (ms)"
+                value={settings.minSilenceLength ?? 500}
+                min={100}
+                max={3000}
+                step={100}
+                onChange={(v) => onSettingsChange({ minSilenceLength: v })}
+                formatValue={(v) => `${v} ms`}
+              />
+            </>
+          ),
+        },
+        {
+          id: 'convert_audio',
+          label: 'Convert Audio Format',
+          icon: RefreshCw,
+          hasSettings: true,
+          renderSettings: ({ settings, onSettingsChange }) => (
+            <>
+              <SegmentedControl
+                label="Output format"
+                value={settings.audioConvertFormat ?? 'mp3'}
+                onChange={(v) => onSettingsChange({ audioConvertFormat: v as RightPanelSettings['audioConvertFormat'] })}
+                options={[
+                  { value: 'mp3', label: 'MP3' },
+                  { value: 'wav', label: 'WAV' },
+                  { value: 'aac', label: 'AAC' },
+                  { value: 'ogg', label: 'OGG' },
+                  { value: 'flac', label: 'FLAC' },
+                ]}
+              />
+              <Select
+                label="Bit rate"
+                value={settings.audioBitrate ?? '128k'}
+                onChange={(v) => onSettingsChange({ audioBitrate: v as RightPanelSettings['audioBitrate'] })}
+                options={[
+                  { value: '64k', label: '64 kbps' },
+                  { value: '128k', label: '128 kbps' },
+                  { value: '192k', label: '192 kbps' },
+                  { value: '320k', label: '320 kbps' },
+                ]}
+              />
+            </>
+          ),
+        },
+        {
+          id: 'audio_to_pdf',
+          label: 'Audio to PDF',
+          icon: FilePlus,
+          hasSettings: true,
+          renderSettings: ({ settings, onSettingsChange }) => (
+            <>
+              <Select
+                label="Language"
+                value={settings.audioLanguage ?? 'auto'}
+                onChange={(v) => onSettingsChange({ audioLanguage: v })}
+                options={[
+                  { value: 'auto', label: 'Auto-detect' },
+                  { value: 'en', label: 'English' },
+                  { value: 'es', label: 'Spanish' },
+                  { value: 'fr', label: 'French' },
+                  { value: 'de', label: 'German' },
+                  { value: 'pt', label: 'Portuguese' },
+                ]}
+              />
+              <Toggle
+                label="Speaker detection"
+                value={settings.speakerDiarization ?? false}
+                onChange={(v) => onSettingsChange({ speakerDiarization: v })}
+              />
+              <Toggle
+                label="Include timestamps"
+                value={settings.includeTimestamps ?? true}
+                onChange={(v) => onSettingsChange({ includeTimestamps: v })}
+              />
+              <Toggle
+                label="Include metadata header"
+                value={settings.includeMetadataHeader ?? true}
+                onChange={(v) => onSettingsChange({ includeMetadataHeader: v })}
+              />
+            </>
+          ),
+        },
+      ],
+    },
+    {
       id: 'sign',
       label: 'Sign & Fill',
       icon: PenLine,
@@ -2502,6 +2705,7 @@ export default function RightPanel({
       { Icon: FileText, title: 'PDF' },
       { Icon: Layout, title: 'Document' },
       { Icon: Image, title: 'Images' },
+      { Icon: Mic, title: 'Audio' },
       { Icon: PenLine, title: 'Sign & Fill' },
       { Icon: QrCode, title: 'Generate' },
       { Icon: Lock, title: 'Security' },

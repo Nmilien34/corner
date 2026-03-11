@@ -16,6 +16,14 @@ interface Props {
   zoomPercent?: number;
   /** Called when PDF loads with page count (for toolbar in split view) */
   onTotalPages?: (n: number) => void;
+  /** Controlled current page (for outer navigation); when omitted, internal state is used. */
+  page?: number;
+  /** Called when page changes (for outer navigation). */
+  onPageChange?: (page: number) => void;
+  /** Hide the built-in page navigation (used when parent renders its own bar). */
+  hidePageNav?: boolean;
+  /** Hide the result action card (used in split document column). */
+  hideResultCard?: boolean;
 }
 
 export default function DocumentViewer({
@@ -25,11 +33,26 @@ export default function DocumentViewer({
   previewMode = 'page',
   zoomPercent = 100,
   onTotalPages,
+  page,
+  onPageChange,
+  hidePageNav,
+  hideResultCard,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [currentPage, setCurrentPage] = useState(1);
+  const [internalPage, setInternalPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [textContent, setTextContent] = useState('');
+
+  const currentPage = page ?? internalPage;
+
+  const setCurrentPage = (updater: (prev: number) => number) => {
+    const next = updater(currentPage);
+    if (onPageChange) {
+      onPageChange(next);
+    } else {
+      setInternalPage(next);
+    }
+  };
 
   const isPdf = result.mimeType === 'application/pdf';
   const isImage = result.mimeType.startsWith('image/');
@@ -49,7 +72,7 @@ export default function DocumentViewer({
     if (!isPdf || !walkthroughStep?.region) return;
     const targetPage = walkthroughStep.region.page;
     if (targetPage && targetPage >= 1 && targetPage <= totalPages) {
-      setCurrentPage(targetPage);
+      setCurrentPage(() => targetPage);
     }
   }, [isPdf, walkthroughStep, totalPages]);
 
@@ -171,8 +194,8 @@ export default function DocumentViewer({
         )}
       </div>
 
-      {/* Page navigation */}
-      {isPdf && totalPages > 1 && previewMode === 'page' && (
+      {/* Page navigation (can be hidden when parent renders its own bar) */}
+      {isPdf && totalPages > 1 && previewMode === 'page' && !hidePageNav && (
         <div className="flex items-center gap-4">
           <button
             onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
@@ -208,8 +231,8 @@ export default function DocumentViewer({
         </div>
       )}
 
-      {/* Result action bar */}
-      <ResultCard result={result} onUndo={onUndo} />
+      {/* Result action bar (can be hidden in split view) */}
+      {!hideResultCard && <ResultCard result={result} onUndo={onUndo} />}
     </div>
   );
 }

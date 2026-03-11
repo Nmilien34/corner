@@ -33,7 +33,10 @@ function buildRegistry(): Partial<Record<ToolName, ToolFn>> {
   const { flipRotateImage }  = require('../tools/flipRotateImage');
   const { addBorderImage }   = require('../tools/addBorderImage');
   const { watermarkImage }   = require('../tools/watermarkImage');
-  const { imageToPdf }       = require('../tools/imageToPdf');
+  const { imageToPdf }          = require('../tools/imageToPdf');
+  const { transcribeAudioTool } = require('../tools/transcribeAudio');
+  const { documentStudy } = require('../tools/documentStudy');
+  const { generateCitation } = require('../tools/generateCitation');
 
   return {
     pdf_to_word:         pdfToWord,
@@ -56,6 +59,11 @@ function buildRegistry(): Partial<Record<ToolName, ToolFn>> {
     add_border_image:    addBorderImage,
     watermark_image:     watermarkImage,
     image_to_pdf:        imageToPdf,
+    transcribe_audio:    transcribeAudioTool,
+    summarize_document:  (files: Express.Multer.File[], params: Record<string, unknown>) => documentStudy(files, { ...params, mode: 'summarize' }),
+    generate_study_questions: (files: Express.Multer.File[], params: Record<string, unknown>) => documentStudy(files, { ...params, mode: 'study_questions' }),
+    extract_key_terms:   (files: Express.Multer.File[], params: Record<string, unknown>) => documentStudy(files, { ...params, mode: 'key_terms' }),
+    generate_citation:   generateCitation,
   };
 }
 
@@ -108,6 +116,8 @@ export function isKnownTool(tool: string): tool is ToolName {
     'jpg_to_png', 'png_to_jpg', 'webp_to_jpg', 'jpg_to_webp',
     'add_page_numbers_word', 'track_changes_word', 'csv_to_excel', 'excel_to_csv',
     'generate_qr', 'extract_text', 'extract_images', 'extract_tables',
+    'summarize_document', 'generate_study_questions', 'extract_key_terms', 'generate_citation',
+    'transcribe_audio',
   ]);
   return KNOWN_TOOLS.has(tool);
 }

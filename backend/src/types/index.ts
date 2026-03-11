@@ -2,6 +2,8 @@
 // imports continue to work after the shared-types migration.
 export type { ToolResult, SignatureField } from '@corner/shared';
 
+import type { TranscriptionResult } from '../tools/transcribeAudio';
+
 /**
  * A rectangular region on a document page, expressed in percentage
  * coordinates (0–100) relative to the page width/height.
@@ -39,4 +41,10 @@ export interface ServerToolResult {
    * front-end to guide users through the result.
    */
   walkthrough?: WalkthroughStep[];
+  /** Populated by transcribe_audio tool — full transcription metadata. */
+  transcriptionResult?: TranscriptionResult & { segmentCount: number; durationLabel: string };
+  /** Populated by transcribe_audio tool — formatted transcript string. */
+  formattedTranscript?: string;
+  /** Populated by transcribe_audio tool — human-readable duration. */
+  durationLabel?: string;
 }

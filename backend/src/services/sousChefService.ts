@@ -2,7 +2,9 @@ import OpenAI from 'openai';
 import fs from 'fs';
 import path from 'path';
 import { env } from '../config/env';
-import type { ChefPlan, ChefStep, StepResult, OrchestrateEvent, ToolResult } from '@corner/shared';
+import type { ChefPlan, ChefStep, StepResult, OrchestrateEvent, ToolResult, StudyToolName } from '@corner/shared';
+
+const STUDY_TOOLS = new Set<string>(['summarize_document', 'generate_study_questions', 'extract_key_terms']);
 import { executeTool, isKnownTool } from './toolService';
 import { saveFileRecord } from './fileService';
 
@@ -179,6 +181,10 @@ const TOOL_DESCRIPTORS: ToolDescriptor[] = [
   { name: 'extract_text',   description: 'Extract all text from a document', params: {} },
   { name: 'extract_images', description: 'Extract embedded images from a document', params: {} },
   { name: 'extract_tables', description: 'Extract tables from a document', params: {} },
+  { name: 'summarize_document', description: 'Summarize the document (overview, main points, takeaways)', params: {} },
+  { name: 'generate_study_questions', description: 'Generate practice exam questions from the document', params: {} },
+  { name: 'extract_key_terms', description: 'Extract key terms and definitions as a glossary', params: {} },
+  { name: 'generate_citation', description: 'Generate APA/MLA/Chicago citation from document', params: { style: { type: 'string', description: 'Citation style', enum: ['apa', 'mla', 'chicago'] } } },
 ];
 
 function buildOpenAITools(): OpenAI.Chat.Completions.ChatCompletionTool[] {
@@ -323,6 +329,14 @@ EXECUTION RULES:
           mimeType:    rawResult.mimeType,
           sizeBytes:   rawResult.sizeBytes,
         };
+        if (STUDY_TOOLS.has(toolName)) {
+          try {
+            clientResult.textContent = fs.readFileSync(rawResult.filePath, 'utf-8');
+            clientResult.studyTool = toolName as StudyToolName;
+          } catch (_) {
+            // leave textContent undefined; frontend can fetch from downloadUrl
+          }
+        }
 
         stepResult = { stepIndex, toolName, success: true, result: clientResult };
 

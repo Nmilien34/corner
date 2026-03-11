@@ -326,6 +326,12 @@ SIGN & FILL TOOLS:
 - tamper_check — verify document integrity
 - void_document — cancel and void a sent document
 
+DOCUMENT INTELLIGENCE (study + citation):
+- summarize_document — summarize the document (overview, main points, takeaways)
+- generate_study_questions — generate practice exam questions from the content
+- extract_key_terms — extract key terms and definitions as a glossary
+- generate_citation — generate APA/MLA/Chicago citation from document metadata
+
 GENERATE TOOLS:
 - generate_qr — create QR code
 - generate_barcode — create barcode
@@ -352,6 +358,91 @@ Within a single conversation, remember:
 
 If context is genuinely unclear after multiple exchanges, say:
 "Just to make sure I'm working on the right thing — you mean [filename], right?"
+
+════════════════════════════════════════
+AUDIO TRANSCRIPTION WORKFLOWS
+════════════════════════════════════════
+
+When an audio or video file is uploaded, the standard document analysis flow does NOT apply. Audio files are not documents — they are recordings. Handle them differently.
+
+─── ON AUDIO FILE UPLOAD (before transcription) ───
+
+Respond immediately with:
+
+"🎙️ **Audio File** · [format] · [duration if available, otherwise omit]
+[filename]
+
+**What Corner can do with this:**
+- Transcribe to text (timestamped, plain, SRT, or VTT format)
+- Identify multiple speakers
+- Export transcript as PDF, DOCX, or TXT
+- Extract a clip by time range
+- Convert to a different audio format
+
+Ready to transcribe? Or tell me what you need."
+
+Do NOT attempt document analysis on audio files. Do NOT look for signatures, key facts, or legal content before transcription. The content is unknown until transcribed.
+
+─── AFTER TRANSCRIPTION COMPLETES ───
+
+The transcription result will be provided to you as structured data including: full transcript text, duration, word count, detected language, segment count, and speaker count if diarization was enabled.
+
+Respond in this exact format:
+
+---
+✅ **Transcription complete**
+[duration] · [word count] words · [language] · [speaker count if > 1: "X speakers detected"]
+
+[The formatted transcript is displayed in the document column — do not repeat the full transcript text in the conversation. It would be too long and redundant.]
+
+**Export options:**
+What format would you like to export this as?
+
+- 📄 PDF Document — formatted transcript with timestamps and header
+- 📝 Word Document — editable DOCX
+- 📋 Plain Text — clean .txt file
+- 🎬 SRT Subtitles — for video editing software
+- 🌐 VTT Subtitles — for web video players
+
+Or just ask me anything about the transcript — I can summarize it, find specific moments, extract action items, or identify key topics.
+---
+
+─── TRANSCRIPT EXPORT RESPONSE ───
+
+When user selects an export format or asks to export:
+"Exporting as [format]..."
+[result card with download button]
+"[filename].[ext] ready — [file size if available]"
+
+─── TRANSCRIPT ANALYSIS ───
+
+After transcription, Corner can analyze the content. If the user asks:
+- "Summarize this" → produce a 3-5 bullet summary of the main topics discussed
+- "Find action items" → list any tasks, commitments, or next steps mentioned
+- "Who said what" → attribute statements to speakers (only if diarization was on)
+- "What did [person/speaker] say about [topic]" → quote the relevant segment with timestamp
+- "Find where [topic] was discussed" → return timestamp + surrounding context
+
+When answering transcript analysis questions, always include the timestamp of the relevant segment in brackets: [0:00] before any quote or reference.
+
+─── ERROR HANDLING FOR AUDIO ───
+
+File too large (over 500MB):
+"This file is [size] — over the 500MB limit for transcription.
+Try: splitting it into smaller segments first, or compressing the audio quality."
+
+Unsupported format:
+"[format] isn't supported for transcription.
+Supported formats: MP3, MP4, M4A, WAV, WEBM, OGG, FLAC, AAC, MOV.
+Convert it to MP3 first and try again."
+
+No speech detected:
+"No speech was detected in this file. It may be music-only, ambient audio, or silent.
+If there is speech, try a higher quality recording or a different file."
+
+Transcription failed:
+"Transcription didn't complete — [reason if available].
+Try: checking your API key is set, or try a shorter clip to test."
 `;
 
 export function buildDocumentAnalysisPrompt(
@@ -414,6 +505,11 @@ export function buildToolConfirmationMessage(
     tamper_check: `Checking${file} for modifications since signing`,
     generate_audit_trail: `Generating audit trail for${file}`,
     void_document: `Voiding${file} — this will cancel all pending signature requests`,
+    transcribe_audio: `Transcribing${file} — language: ${(params.language as string) === 'auto' ? 'auto-detect' : ((params.language as string) ?? 'auto-detect')}, format: ${(params.format as string) ?? 'timestamped'}${params.speakerDiarization ? ', speaker detection on' : ''}`,
+    summarize_document: `Summarizing${file}`,
+    generate_study_questions: `Generating study questions from${file}`,
+    extract_key_terms: `Extracting key terms from${file}`,
+    generate_citation: `Generating ${((params.style as string) ?? 'APA').toUpperCase()} citation for${file}`,
   };
 
   return descriptions[toolName] ?? `Running ${toolName} on${file}`;

@@ -13,6 +13,7 @@ interface Options {
   onMessages: (updater: (prev: ChatMessage[]) => ChatMessage[]) => void;
   onClarify: (question: string) => void;
   onEsignInteractive: (parsed: ParsedIntent, file: File | undefined) => void;
+  onPlanUnderstanding?: (text: string) => void;
 }
 
 async function runTool(
@@ -49,7 +50,7 @@ function addMessage(
   ]);
 }
 
-export function useIntent({ onProcessingChange, onResult, onMessages, onClarify, onEsignInteractive }: Options) {
+export function useIntent({ onProcessingChange, onResult, onMessages, onClarify, onEsignInteractive, onPlanUnderstanding }: Options) {
   const execute = useCallback(
     async (message: string, file?: File) => {
       try {
@@ -167,16 +168,23 @@ export function useIntent({ onProcessingChange, onResult, onMessages, onClarify,
   );
 
   const plannedToolNamesRef = useRef<string[]>([]);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  const stop = useCallback(() => {
+    abortControllerRef.current?.abort();
+  }, []);
 
   const executeWithOrchestrator = useCallback(
     async (message: string, files: File[]) => {
+      abortControllerRef.current = new AbortController();
+      const signal = abortControllerRef.current.signal;
       try {
         plannedToolNamesRef.current = [];
         const formData = new FormData();
         formData.append('message', message);
         files.forEach((f) => formData.append('files', f));
 
-        const response = await fetch('/api/orchestrate', { method: 'POST', body: formData });
+        const response = await fetch('/api/orchestrate', { method: 'POST', body: formData, signal });
         if (!response.body) throw new Error('No response body from orchestrator');
 
         const reader = response.body.getReader();
@@ -212,7 +220,8 @@ export function useIntent({ onProcessingChange, onResult, onMessages, onClarify,
                 const toolNames = event.plan?.steps?.map((s) => s.toolName) ?? [];
                 plannedToolNamesRef.current = toolNames;
                 if (event.plan?.understanding) {
-                  addMessage(onMessages, 'corner', event.plan.understanding);
+                  // Keep planner "understanding" out of the main chat; surface via an optional disclosure in the UI.
+                  onPlanUnderstanding?.(event.plan.understanding);
                 }
                 // Intercept esign — hand off to interactive canvas before Sous Chef runs
                 if (event.plan?.steps?.some((s) => s.toolName === 'esign')) {
@@ -293,6 +302,10 @@ export function useIntent({ onProcessingChange, onResult, onMessages, onClarify,
           }
         }
       } catch (err) {
+        if (err instanceof Error && err.name === 'AbortError') {
+          onProcessingChange(null);
+          return;
+        }
         const msg = err instanceof Error ? err.message : 'Orchestration failed';
         toast({ variant: 'destructive', title: 'Error', description: msg });
         onProcessingChange(null);
@@ -301,5 +314,5 @@ export function useIntent({ onProcessingChange, onResult, onMessages, onClarify,
     [onProcessingChange, onResult, onMessages, onClarify, onEsignInteractive]
   );
 
-  return { execute, rerunWithSettings, executeWithOrchestrator };
+  return { execute, rerunWithSettings, executeWithOrchestrator, stop };
 }

@@ -1,45 +1,89 @@
 import { useRef, useState, useEffect, type KeyboardEvent } from 'react';
-import { Paperclip, ArrowUp, X } from 'lucide-react';
+import { Paperclip, ArrowUp, X, Square } from 'lucide-react';
 import type { ChatMessage } from '../../types';
 import ChatMessageComp from './ChatMessage';
 import FormatBadge from '../ui/FormatBadge';
 import { getFileFormatInfo, getConversionWarning } from '../../lib/fileFormat';
 
+function ThinkingDotsInline() {
+  return (
+    <div
+      className="flex items-center justify-center gap-1.5 w-full max-w-lg pointer-events-auto mb-2"
+      style={{
+        padding: '8px 10px',
+        background: 'var(--white)',
+        border: '1px solid var(--border)',
+        borderRadius: 12,
+        color: 'var(--text-muted)',
+        fontFamily: 'var(--chat-font-family)',
+        fontSize: 12,
+      }}
+      aria-label="Corner is thinking"
+    >
+      <span style={{ marginRight: 6 }}>Corner is thinking</span>
+      <span
+        className="rounded-full animate-thinking-dot"
+        style={{ width: 4, height: 4, background: 'var(--accent)' }}
+      />
+      <span
+        className="rounded-full animate-thinking-dot"
+        style={{ width: 4, height: 4, background: 'var(--accent)', animationDelay: '0.15s' }}
+      />
+      <span
+        className="rounded-full animate-thinking-dot"
+        style={{ width: 4, height: 4, background: 'var(--accent)', animationDelay: '0.3s' }}
+      />
+    </div>
+  );
+}
+
 interface Props {
   messages: ChatMessage[];
-  currentFile: File | null;
+  /** Prefer currentFiles; currentFile is supported for backward compatibility */
+  currentFiles?: File[];
+  currentFile?: File | null;
   onSend: (text: string, files: File[]) => void;
   disabled?: boolean;
+  /** When set and disabled (processing), show a red stop button that calls this to cancel */
+  onStop?: () => void;
   /** When true, input floats up below the drop zone (empty state) */
   floatUp?: boolean;
   onFocus?: () => void;
   onBlur?: () => void;
-  /** Called when user removes the dropped file from the chip (optional) */
+  /** Called when user clears the dropped file(s) (optional) */
+  onClearCurrentFiles?: () => void;
   onClearCurrentFile?: () => void;
 }
 
-export default function ChatFloat({ messages, currentFile, onSend, disabled, floatUp, onFocus, onBlur, onClearCurrentFile }: Props) {
+export default function ChatFloat({ messages, currentFiles: currentFilesProp, currentFile: currentFileProp, onSend, disabled, onStop, floatUp, onFocus, onBlur, onClearCurrentFiles, onClearCurrentFile }: Props) {
   const [text, setText] = useState('');
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
   const [conversionWarning, setConversionWarning] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  const currentFiles = currentFilesProp ?? (currentFileProp ? [currentFileProp] : []);
+  const onClear = onClearCurrentFiles ?? onClearCurrentFile;
+  const hasCurrentFiles = currentFiles.length > 0;
+  const firstFile = currentFiles[0] ?? attachedFiles[0] ?? null;
+  /** Single-file alias for backward compatibility (some callers/code paths may reference currentFile) */
+  const currentFile = firstFile ?? currentFileProp ?? null;
+
   useEffect(() => {
-    const file = currentFile ?? attachedFiles[0] ?? null;
-    if (file) {
-      setConversionWarning(getConversionWarning(getFileFormatInfo(file.name)));
+    if (firstFile) {
+      setConversionWarning(getConversionWarning(getFileFormatInfo(firstFile.name)));
     } else {
       setConversionWarning(null);
     }
-  }, [currentFile?.name, attachedFiles.length]);
+  }, [firstFile?.name, attachedFiles.length, currentFiles.length]);
 
   const recentMessages = messages.slice(-3);
-  const canSend = !!(text.trim() || attachedFiles.length > 0 || currentFile) && !disabled;
+  const canSend = !!(text.trim() || attachedFiles.length > 0 || hasCurrentFiles) && !disabled;
 
   const handleSend = () => {
     if (!canSend) return;
-    onSend(text.trim(), attachedFiles);
+    const files = attachedFiles.length > 0 ? attachedFiles : currentFiles;
+    onSend(text.trim(), files);
     setText('');
     setAttachedFiles([]);
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
@@ -79,11 +123,11 @@ export default function ChatFloat({ messages, currentFile, onSend, disabled, flo
 
   const placeholder = disabled
     ? 'working on it...'
-    : currentFile && attachedFiles.length === 0
-    ? `${currentFile.name} ready — ask anything...`
+    : hasCurrentFiles && attachedFiles.length === 0
+    ? (currentFiles.length === 1 ? `${currentFiles[0].name} ready — ask anything...` : `${currentFiles.length} files ready — ask anything...`)
     : 'ask anything or drop a file...';
 
-  const hasFiles = attachedFiles.length > 0 || !!currentFile;
+  const hasFiles = attachedFiles.length > 0 || hasCurrentFiles;
 
   return (
     <div
@@ -103,6 +147,9 @@ export default function ChatFloat({ messages, currentFile, onSend, disabled, flo
           ))}
         </div>
       )}
+
+      {/* When processing (orchestrator planning), show a clear thinking indicator */}
+      {disabled && <ThinkingDotsInline />}
 
       {/* Claude-style expandable input card — chips inside, expand upward when files added */}
       <div
@@ -128,8 +175,9 @@ export default function ChatFloat({ messages, currentFile, onSend, disabled, flo
               animation: 'chatFloatExpand 220ms ease-out',
             }}
           >
-            {currentFile && (
+            {currentFiles.map((file, i) => (
               <div
+                key={`current-${i}-${file.name}`}
                 className="flex items-center gap-2 shrink-0 rounded-full transition-colors duration-150"
                 style={{
                   height: 32,
@@ -140,14 +188,14 @@ export default function ChatFloat({ messages, currentFile, onSend, disabled, flo
                   maxWidth: 220,
                 }}
               >
-                <FormatBadge fileName={currentFile.name} size="sm" />
+                <FormatBadge fileName={file.name} size="sm" />
                 <span className="truncate text-xs font-medium" style={{ color: 'var(--text-primary)' }}>
-                  {currentFile.name}
+                  {file.name}
                 </span>
-                {onClearCurrentFile && (
+                {onClear && currentFiles.length === 1 && (
                   <button
                     type="button"
-                    onClick={onClearCurrentFile}
+                    onClick={onClear}
                     className="flex items-center justify-center w-6 h-6 rounded-full shrink-0 transition-colors duration-150 hover:bg-(--border)"
                     style={{ color: 'var(--text-muted)' }}
                     aria-label="Remove file"
@@ -156,6 +204,24 @@ export default function ChatFloat({ messages, currentFile, onSend, disabled, flo
                   </button>
                 )}
               </div>
+            ))}
+            {currentFiles.length > 1 && onClear && (
+              <button
+                type="button"
+                onClick={onClear}
+                style={{
+                  padding: '4px 10px',
+                  borderRadius: 8,
+                  fontSize: 11,
+                  fontWeight: 500,
+                  border: '1px solid var(--border)',
+                  background: 'transparent',
+                  color: 'var(--text-muted)',
+                  cursor: 'pointer',
+                }}
+              >
+                Clear all
+              </button>
             )}
             {attachedFiles.map((f, i) => (
               <div
@@ -203,7 +269,7 @@ export default function ChatFloat({ messages, currentFile, onSend, disabled, flo
                   <button
                     type="button"
                     onClick={() => {
-                      const file = currentFile ?? attachedFiles[0];
+                      const file = firstFile;
                       if (file) onSend(`Convert ${file.name} to PDF`, []);
                       setConversionWarning(null);
                     }}
@@ -239,6 +305,38 @@ export default function ChatFloat({ messages, currentFile, onSend, disabled, flo
                 </div>
               </div>
             )}
+            {/* Study + citation quick actions */}
+            <div className="flex flex-wrap items-center gap-2 w-full" style={{ marginTop: 8 }}>
+              {[
+                { label: 'Summarize', msg: 'Summarize this document' },
+                { label: 'Study questions', msg: 'Generate study questions from this document' },
+                { label: 'Key terms', msg: 'Extract key terms and definitions' },
+                { label: 'Get citation', msg: 'Get citation for this document' },
+              ].map(({ label, msg }) => (
+                <button
+                  key={label}
+                  type="button"
+                  onClick={() => {
+                    const files = attachedFiles.length > 0 ? attachedFiles : currentFiles;
+                    onSend(msg, files);
+                  }}
+                  disabled={disabled}
+                  className="shrink-0"
+                  style={{
+                    padding: '6px 12px',
+                    borderRadius: 8,
+                    fontSize: 12,
+                    fontWeight: 500,
+                    border: '1px solid var(--border)',
+                    background: 'transparent',
+                    color: 'var(--text-primary)',
+                    cursor: disabled ? 'default' : 'pointer',
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
@@ -259,7 +357,7 @@ export default function ChatFloat({ messages, currentFile, onSend, disabled, flo
             height: 32,
             borderRadius: 6,
             background: 'transparent',
-            color: attachedFiles.length > 0 || currentFile ? 'var(--accent)' : 'var(--text-muted)',
+            color: attachedFiles.length > 0 || hasCurrentFiles ? 'var(--accent)' : 'var(--text-muted)',
             cursor: 'pointer',
           }}
           onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--hover)'; }}
@@ -288,7 +386,7 @@ export default function ChatFloat({ messages, currentFile, onSend, disabled, flo
           rows={1}
           className="flex-1 resize-none bg-transparent outline-none py-2 px-2"
           style={{
-            fontFamily: 'Geist, sans-serif',
+            fontFamily: 'var(--chat-font-family)',
             fontSize: 13,
             color: 'var(--text-primary)',
             minHeight: 24,
@@ -298,24 +396,48 @@ export default function ChatFloat({ messages, currentFile, onSend, disabled, flo
             caretColor: 'var(--accent)',
           }}
         />
-        <button
-          onClick={handleSend}
-          disabled={!canSend}
-          className="shrink-0 flex items-center justify-center transition-opacity duration-150"
-          style={{
-            width: 32,
-            height: 32,
-            marginRight: 6,
-            borderRadius: 6,
-            background: canSend ? 'var(--accent)' : 'transparent',
-            color: canSend ? 'var(--white)' : 'var(--text-muted)',
-            cursor: canSend ? 'pointer' : 'default',
-          }}
-          onMouseEnter={(e) => { canSend && (e.currentTarget.style.opacity = '0.88'); }}
-          onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
-        >
-          <ArrowUp size={14} strokeWidth={2} />
-        </button>
+        {disabled && onStop ? (
+          <button
+            type="button"
+            onClick={onStop}
+            className="shrink-0 flex items-center justify-center transition-opacity duration-150"
+            style={{
+              width: 32,
+              height: 32,
+              marginRight: 6,
+              borderRadius: 6,
+              background: '#dc2626',
+              color: 'var(--white)',
+              cursor: 'pointer',
+              border: 'none',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.9'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
+            aria-label="Stop"
+            title="Stop"
+          >
+            <Square size={14} fill="currentColor" stroke="none" />
+          </button>
+        ) : (
+          <button
+            onClick={handleSend}
+            disabled={!canSend}
+            className="shrink-0 flex items-center justify-center transition-opacity duration-150"
+            style={{
+              width: 32,
+              height: 32,
+              marginRight: 6,
+              borderRadius: 6,
+              background: canSend ? 'var(--accent)' : 'transparent',
+              color: canSend ? 'var(--white)' : 'var(--text-muted)',
+              cursor: canSend ? 'pointer' : 'default',
+            }}
+            onMouseEnter={(e) => { canSend && (e.currentTarget.style.opacity = '0.88'); }}
+            onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
+          >
+            <ArrowUp size={14} strokeWidth={2} />
+          </button>
+        )}
         </div>
       </div>
     </div>

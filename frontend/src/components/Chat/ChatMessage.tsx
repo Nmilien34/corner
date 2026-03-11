@@ -24,6 +24,7 @@ export default function ChatMessage({ message, compact }: Props) {
             fontSize: 12,
             lineHeight: 1.35,
             border: '1px solid var(--border)',
+            fontFamily: 'var(--chat-font-family)',
           }}
         >
           {message.content}
@@ -68,6 +69,7 @@ export default function ChatMessage({ message, compact }: Props) {
               borderRadius: isCorner ? 0 : '10px',
               border: isCorner ? 'none' : '1px solid var(--border)',
               boxShadow: isCorner ? 'var(--shadow-xs)' : 'none',
+              fontFamily: 'var(--chat-font-family)',
             }}
           >
             {message.content}

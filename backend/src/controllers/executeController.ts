@@ -1,10 +1,13 @@
+import fs from 'fs';
 import type { Request, Response, NextFunction } from 'express';
 import { executeTool, isKnownTool } from '../services/toolService';
 import { saveFileRecord } from '../services/fileService';
 import { createError } from '../middleware/errorHandler';
 import { buildToolConfirmationMessage } from '../prompts/documentIntelligence';
-import type { ToolResult } from '@corner/shared';
+import type { ToolResult, StudyToolName } from '@corner/shared';
 import type { WalkthroughStep } from '../types';
+
+const STUDY_TOOLS = new Set<string>(['summarize_document', 'generate_study_questions', 'extract_key_terms']);
 
 export async function handleExecute(req: Request, res: Response, next: NextFunction): Promise<void> {
   const files = (req.files as Express.Multer.File[]) ?? [];
@@ -41,15 +44,33 @@ export async function handleExecute(req: Request, res: Response, next: NextFunct
       userId:    req.user?.userId?.toString(),
     });
 
-    const clientResult: ToolResult & { walkthrough?: WalkthroughStep[]; message?: string } = {
+    const clientResult: ToolResult & {
+      walkthrough?: WalkthroughStep[];
+      message?: string;
+      transcriptionResult?: unknown;
+      formattedTranscript?: string;
+      durationLabel?: string;
+    } = {
       fileId,
-      downloadUrl: `/api/file/${fileId}`,
-      fileName:    result.fileName,
-      mimeType:    result.mimeType,
-      sizeBytes:   result.sizeBytes,
-      walkthrough: result.walkthrough,
-      message:     buildToolConfirmationMessage(tool, parsedParams),
+      downloadUrl:         `/api/file/${fileId}`,
+      fileName:            result.fileName,
+      mimeType:            result.mimeType,
+      sizeBytes:           result.sizeBytes,
+      walkthrough:         result.walkthrough,
+      message:             buildToolConfirmationMessage(tool, parsedParams),
+      transcriptionResult: result.transcriptionResult,
+      formattedTranscript: result.formattedTranscript,
+      durationLabel:       result.durationLabel,
     };
+
+    if (STUDY_TOOLS.has(tool)) {
+      try {
+        clientResult.textContent = fs.readFileSync(result.filePath, 'utf-8');
+        clientResult.studyTool = tool as StudyToolName;
+      } catch (_) {
+        // leave textContent undefined; frontend can fetch from downloadUrl
+      }
+    }
 
     res.json(clientResult);
   } catch (err) {

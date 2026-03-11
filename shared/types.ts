@@ -53,7 +53,18 @@ export type ToolName =
   | 'generate_qr'
   | 'extract_text'
   | 'extract_images'
-  | 'extract_tables';
+  | 'extract_tables'
+  // Document intelligence (study + citation)
+  | 'summarize_document'
+  | 'generate_study_questions'
+  | 'extract_key_terms'
+  | 'generate_citation'
+  // Audio
+  | 'transcribe_audio'
+  | 'extract_audio'
+  | 'remove_silence'
+  | 'convert_audio'
+  | 'audio_to_pdf';
 
 export interface ParsedIntent {
   tool: ToolName | null;
@@ -67,6 +78,9 @@ export interface ParsedIntent {
   fileExtension?: string;
 }
 
+/** Study tools that return inline text + optional export (no doc switch) */
+export type StudyToolName = 'summarize_document' | 'generate_study_questions' | 'extract_key_terms';
+
 /** Client-facing result after tool execution */
 export interface ToolResult {
   fileId: string;
@@ -75,6 +89,21 @@ export interface ToolResult {
   mimeType: string;
   sizeBytes: number;
   previewUrl?: string;
+  /** For study tools: full text to show inline in chat */
+  textContent?: string;
+  /** For study tools: which tool produced this result */
+  studyTool?: StudyToolName;
+  transcriptionResult?: {
+    transcript: string;
+    duration: number;
+    language: string;
+    wordCount: number;
+    speakerCount?: number;
+    segmentCount: number;
+    durationLabel: string;
+  };
+  formattedTranscript?: string;
+  durationLabel?: string;
 }
 
 export interface SignatureField {

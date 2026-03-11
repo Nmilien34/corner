@@ -27,6 +27,10 @@ export type ToolName =
   // Misc
   | 'generate_qr' | 'barcode' | 'invoice_pdf' | 'certificate_pdf'
   | 'extract_text' | 'extract_images' | 'extract_tables'
+  // Document intelligence (study + citation)
+  | 'summarize_document' | 'generate_study_questions' | 'extract_key_terms' | 'generate_citation'
+  // Audio
+  | 'transcribe_audio' | 'extract_audio' | 'remove_silence' | 'convert_audio' | 'audio_to_pdf'
 
 export type ExecutionMode = 'silent' | 'interactive'
 export type VersionStatus = 'processing' | 'complete' | 'error'
@@ -68,6 +72,8 @@ export interface ChatMessage {
   attachmentName?: string
   /** When present, show inline result card in corner message */
   result?: ToolResult
+  /** When set, used to show inline text + Export for study tools */
+  toolName?: string
 }
 
 export interface SavedSignature {
@@ -100,7 +106,20 @@ export interface ToolResult {
   mimeType: string
   sizeBytes: number
   previewUrl?: string
+  textContent?: string
+  studyTool?: string
   walkthrough?: WalkthroughStep[]
+  transcriptionResult?: {
+    transcript: string
+    duration: number
+    language: string
+    wordCount: number
+    speakerCount?: number
+    segmentCount: number
+    durationLabel: string
+  }
+  formattedTranscript?: string
+  durationLabel?: string
 }
 
 export interface ProcessingState {
@@ -122,6 +141,13 @@ export interface SignatureField {
   placed: boolean
 }
 
+/** Folder (project) for grouping conversations. */
+export interface Folder {
+  id: string
+  name: string
+  createdAt?: number
+}
+
 /** Conversation list item (API or localStorage). Used for left panel. */
 export interface ConversationListItem {
   id: string
@@ -132,6 +158,9 @@ export interface ConversationListItem {
   latestResultFileId?: string
   latestResultFileName?: string
   latestResultMimeType?: string
+  archived?: boolean
+  pinned?: boolean
+  folderId?: string
 }
 
 /** Payload for adding a message (API or hook). Use 'corner' for assistant messages. */

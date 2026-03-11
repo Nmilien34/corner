@@ -71,6 +71,55 @@ export async function getMessages(req: Request, res: Response, next: NextFunctio
   }
 }
 
+// PATCH /api/conversations/:id
+export async function updateConversation(req: Request, res: Response, next: NextFunction): Promise<void> {
+  if (!isDbAvailable()) { next(createError(503, 'Database unavailable')); return; }
+
+  try {
+    const { id } = req.params;
+    const { title, archived, pinned } = req.body as {
+      title?: string;
+      archived?: boolean;
+      pinned?: boolean;
+    };
+
+    const conversation = await Conversation.findOne({ _id: id, userId: req.user!.userId });
+    if (!conversation) { next(createError(404, 'Conversation not found')); return; }
+
+    const update: Record<string, unknown> = {};
+    if (title !== undefined) update.title = title.trim().slice(0, 200) || 'New Conversation';
+    if (archived !== undefined) update.archived = archived;
+    if (pinned !== undefined) update.pinned = pinned;
+
+    if (!Object.keys(update).length) { res.json(conversation); return; }
+
+    const updated = await Conversation.findOneAndUpdate(
+      { _id: id, userId: req.user!.userId },
+      update,
+      { new: true, select: '-__v' }
+    );
+    res.json(updated);
+  } catch (err) {
+    next(createError(500, 'Failed to update conversation'));
+  }
+}
+
+// DELETE /api/conversations/:id
+export async function deleteConversation(req: Request, res: Response, next: NextFunction): Promise<void> {
+  if (!isDbAvailable()) { next(createError(503, 'Database unavailable')); return; }
+
+  try {
+    const { id } = req.params;
+    const conversation = await Conversation.findOneAndDelete({ _id: id, userId: req.user!.userId });
+    if (!conversation) { next(createError(404, 'Conversation not found')); return; }
+
+    await Message.deleteMany({ conversationId: new Types.ObjectId(id as string) });
+    res.json({ deleted: true, id });
+  } catch (err) {
+    next(createError(500, 'Failed to delete conversation'));
+  }
+}
+
 // POST /api/conversations/:id/messages
 export async function addMessage(req: Request, res: Response, next: NextFunction): Promise<void> {
   if (!isDbAvailable()) { next(createError(503, 'Database unavailable')); return; }

@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react';
 import type { SavedSignature } from '../../types';
 import SignatureCapture from './SignatureCapture';
+import { toast } from '../../hooks/use-toast';
 
 type Step = 'welcome' | 'signature' | 'signature_review' | 'done';
+type AuthMode = 'register' | 'login';
 
 interface Props {
   onComplete: () => void;
-  onSignInWithGoogle?: () => void | Promise<void>;
-  onSignInWithEmail?: (email: string) => void | Promise<void>;
+  onRegister?: (email: string, password: string, displayName: string) => Promise<void>;
+  onLogin?: (email: string, password: string) => Promise<void>;
 }
 
 function IconGoogle({ size = 20 }: { size?: number }) {
@@ -21,11 +23,30 @@ function IconGoogle({ size = 20 }: { size?: number }) {
   );
 }
 
-export default function OnboardingModal({ onComplete, onSignInWithGoogle, onSignInWithEmail }: Props) {
+const inputStyle: React.CSSProperties = {
+  height: 44,
+  padding: '0 14px',
+  border: '1px solid var(--border)',
+  background: 'var(--white)',
+  color: 'var(--text-primary)',
+  fontSize: 14,
+  fontFamily: 'Geist, sans-serif',
+  borderRadius: 8,
+  width: '100%',
+  outline: 'none',
+};
+
+export default function OnboardingModal({ onComplete, onRegister, onLogin }: Props) {
   const [step, setStep] = useState<Step>('welcome');
   const [pendingSignature, setPendingSignature] = useState<SavedSignature | null>(null);
   const [countdown, setCountdown] = useState(3);
+
+  const [authMode, setAuthMode] = useState<AuthMode>('register');
   const [email, setEmail] = useState('');
+  const [displayName, setDisplayName] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [authError, setAuthError] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState(false);
 
   // Auto-close after "done" step
@@ -40,8 +61,7 @@ export default function OnboardingModal({ onComplete, onSignInWithGoogle, onSign
 
   // 3-second countdown when entering signature_review
   useEffect(() => {
-    if (step !== 'signature_review' || countdown < 0) return;
-    if (countdown === 0) return; // stay at 0, don't go negative
+    if (step !== 'signature_review' || countdown <= 0) return;
     const t = setInterval(() => setCountdown((c) => c - 1), 1000);
     return () => clearInterval(t);
   }, [step, countdown]);
@@ -64,38 +84,73 @@ export default function OnboardingModal({ onComplete, onSignInWithGoogle, onSign
 
   const handleContinueToSignature = () => setStep('signature');
 
-  const handleSignInWithGoogle = async () => {
-    if (onSignInWithGoogle) {
-      setAuthLoading(true);
-      try {
-        await onSignInWithGoogle();
-        handleContinueToSignature();
-      } finally {
-        setAuthLoading(false);
-      }
-    } else {
-      handleContinueToSignature();
-    }
-  };
-
-  const handleContinueWithEmail = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (onSignInWithEmail && email.trim()) {
-      setAuthLoading(true);
-      try {
-        await onSignInWithEmail(email.trim());
-        handleContinueToSignature();
-      } finally {
-        setAuthLoading(false);
-      }
-    } else {
-      handleContinueToSignature();
-    }
-  };
-
   const handleClose = () => {
     localStorage.setItem('corner:onboarding-complete', '1');
     onComplete();
+  };
+
+  const handleGoogleSignIn = () => {
+    toast({
+      title: 'Coming soon',
+      description: 'Google sign-in is on the way!',
+    });
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError(null);
+
+    // Client-side validation
+    if (authMode === 'register') {
+      if (!displayName.trim()) {
+        setAuthError('Please enter your name.');
+        return;
+      }
+      if (password.length < 8) {
+        setAuthError('Password must be at least 8 characters.');
+        return;
+      }
+      if (password !== confirmPassword) {
+        setAuthError('Passwords do not match.');
+        return;
+      }
+    }
+
+    if (!email.trim() || !password) {
+      setAuthError('Please fill in all fields.');
+      return;
+    }
+
+    setAuthLoading(true);
+    try {
+      if (authMode === 'register' && onRegister) {
+        await onRegister(email.trim(), password, displayName.trim());
+        handleContinueToSignature();
+      } else if (authMode === 'login' && onLogin) {
+        await onLogin(email.trim(), password);
+        handleClose();
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '';
+      if (msg === 'EMAIL_EXISTS') {
+        setAuthError('This email is already registered.');
+      } else if (msg === 'USER_NOT_FOUND') {
+        setAuthError('USER_NOT_FOUND');
+      } else if (msg === 'INVALID_CREDENTIALS') {
+        setAuthError('Incorrect password.');
+      } else {
+        setAuthError('Something went wrong. Please try again.');
+      }
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const switchMode = (mode: AuthMode) => {
+    setAuthMode(mode);
+    setAuthError(null);
+    setPassword('');
+    setConfirmPassword('');
   };
 
   return (
@@ -120,7 +175,7 @@ export default function OnboardingModal({ onComplete, onSignInWithGoogle, onSign
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Close (X) button — always visible */}
+        {/* Close (X) button */}
         <button
           type="button"
           onClick={handleClose}
@@ -155,6 +210,7 @@ export default function OnboardingModal({ onComplete, onSignInWithGoogle, onSign
             <path d="M18 6L6 18M6 6l12 12" />
           </svg>
         </button>
+
         {step === 'welcome' && (
           <div className="flex flex-col w-full" style={{ maxWidth: 400, margin: '0 auto' }}>
             {/* Logo */}
@@ -184,6 +240,7 @@ export default function OnboardingModal({ onComplete, onSignInWithGoogle, onSign
                 <span style={{ fontSize: 18, fontWeight: 600, color: 'var(--accent)', fontFamily: 'Geist, sans-serif' }}>C</span>
               </div>
             </div>
+
             {/* Headline */}
             <h1
               style={{
@@ -195,7 +252,7 @@ export default function OnboardingModal({ onComplete, onSignInWithGoogle, onSign
                 marginBottom: 6,
               }}
             >
-              Welcome to Corner
+              {authMode === 'register' ? 'Welcome to the Corner of the internet' : 'Welcome back'}
             </h1>
             <p
               style={{
@@ -206,12 +263,15 @@ export default function OnboardingModal({ onComplete, onSignInWithGoogle, onSign
                 lineHeight: 1.45,
               }}
             >
-              Create an account or sign in to save your work and sync across devices.
+              {authMode === 'register'
+                ? 'Your one-stop shop for document work — conversion, compression, signature, and more. Sign up to get started!'
+                : 'Sign in to pick up where you left off.'}
             </p>
-            {/* Sign in with Google */}
+
+            {/* Google button */}
             <button
               type="button"
-              onClick={handleSignInWithGoogle}
+              onClick={handleGoogleSignIn}
               disabled={authLoading}
               className="w-full flex items-center justify-center gap-3 rounded-lg transition-colors duration-150"
               style={{
@@ -227,8 +287,9 @@ export default function OnboardingModal({ onComplete, onSignInWithGoogle, onSign
               }}
             >
               <IconGoogle size={20} />
-              Sign in with Google
+              Continue with Google
             </button>
+
             {/* Divider */}
             <div className="relative flex items-center my-5">
               <span style={{ flex: 1, height: 1, background: 'var(--border)' }} />
@@ -247,25 +308,112 @@ export default function OnboardingModal({ onComplete, onSignInWithGoogle, onSign
               </span>
               <span style={{ flex: 1, height: 1, background: 'var(--border)' }} />
             </div>
-            {/* Continue with email */}
-            <form onSubmit={handleContinueWithEmail} className="flex flex-col gap-3">
+
+            {/* Auth form */}
+            <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+              {authMode === 'register' && (
+                <input
+                  type="text"
+                  placeholder="Your name"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  disabled={authLoading}
+                  style={inputStyle}
+                  autoComplete="name"
+                />
+              )}
+
               <input
                 type="email"
                 placeholder="you@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={authLoading}
-                className="w-full rounded-lg outline-none transition-colors duration-150"
-                style={{
-                  height: 44,
-                  padding: '0 14px',
-                  border: '1px solid var(--border)',
-                  background: 'var(--white)',
-                  color: 'var(--text-primary)',
-                  fontSize: 14,
-                  fontFamily: 'Geist, sans-serif',
-                }}
+                style={inputStyle}
+                autoComplete="email"
               />
+
+              <input
+                type="password"
+                placeholder="Password (min 8 characters)"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={authLoading}
+                style={inputStyle}
+                autoComplete={authMode === 'register' ? 'new-password' : 'current-password'}
+              />
+
+              {authMode === 'register' && (
+                <input
+                  type="password"
+                  placeholder="Confirm password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  disabled={authLoading}
+                  style={inputStyle}
+                  autoComplete="new-password"
+                />
+              )}
+
+              {/* Error message */}
+              {authError && (
+                <p
+                  style={{
+                    fontSize: 13,
+                    color: '#c0392b',
+                    fontFamily: 'Geist, sans-serif',
+                    margin: '2px 0 0',
+                  }}
+                >
+                  {authError === 'USER_NOT_FOUND' ? (
+                    <>
+                      No account found with this email.{' '}
+                      <button
+                        type="button"
+                        onClick={() => switchMode('register')}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: 'var(--accent)',
+                          fontSize: 13,
+                          fontFamily: 'Geist, sans-serif',
+                          cursor: 'pointer',
+                          textDecoration: 'underline',
+                          padding: 0,
+                        }}
+                      >
+                        Sign up instead
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      {authError}
+                      {authError.includes('already registered') && authMode === 'register' && (
+                        <>
+                          {' '}
+                          <button
+                            type="button"
+                            onClick={() => switchMode('login')}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              color: 'var(--accent)',
+                              fontSize: 13,
+                              fontFamily: 'Geist, sans-serif',
+                              cursor: 'pointer',
+                              textDecoration: 'underline',
+                              padding: 0,
+                            }}
+                          >
+                            Sign in instead
+                          </button>
+                        </>
+                      )}
+                    </>
+                  )}
+                </p>
+              )}
+
               <button
                 type="submit"
                 disabled={authLoading}
@@ -279,18 +427,81 @@ export default function OnboardingModal({ onComplete, onSignInWithGoogle, onSign
                   fontWeight: 500,
                   fontFamily: 'Geist, sans-serif',
                   cursor: authLoading ? 'wait' : 'pointer',
+                  marginTop: 4,
                 }}
               >
-                Continue with email
+                {authLoading
+                  ? authMode === 'register'
+                    ? 'Creating account…'
+                    : 'Signing in…'
+                  : authMode === 'register'
+                  ? 'Create account'
+                  : 'Sign in'}
               </button>
             </form>
+
+            {/* Mode toggle */}
+            <p
+              style={{
+                marginTop: 16,
+                fontSize: 13,
+                color: 'var(--text-muted)',
+                textAlign: 'center',
+                fontFamily: 'Geist, sans-serif',
+              }}
+            >
+              {authMode === 'register' ? (
+                <>
+                  Already have an account?{' '}
+                  <button
+                    type="button"
+                    onClick={() => switchMode('login')}
+                    disabled={authLoading}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--accent)',
+                      fontSize: 13,
+                      fontFamily: 'Geist, sans-serif',
+                      cursor: authLoading ? 'wait' : 'pointer',
+                      textDecoration: 'underline',
+                      padding: 0,
+                    }}
+                  >
+                    Sign in
+                  </button>
+                </>
+              ) : (
+                <>
+                  Don't have an account?{' '}
+                  <button
+                    type="button"
+                    onClick={() => switchMode('register')}
+                    disabled={authLoading}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--accent)',
+                      fontSize: 13,
+                      fontFamily: 'Geist, sans-serif',
+                      cursor: authLoading ? 'wait' : 'pointer',
+                      textDecoration: 'underline',
+                      padding: 0,
+                    }}
+                  >
+                    Create one
+                  </button>
+                </>
+              )}
+            </p>
+
             {/* Continue without account */}
             <button
               type="button"
               onClick={handleContinueToSignature}
               disabled={authLoading}
               style={{
-                marginTop: 20,
+                marginTop: 12,
                 background: 'none',
                 border: 'none',
                 color: 'var(--text-muted)',
@@ -384,33 +595,45 @@ export default function OnboardingModal({ onComplete, onSignInWithGoogle, onSign
                 </div>
                 <div className="flex gap-3 justify-center">
                   <button
+                    type="button"
                     onClick={() => {
                       setStep('signature');
                       setPendingSignature(null);
                     }}
-                    className="px-4 py-2.5 rounded-lg"
                     style={{
-                      background: 'none',
-                      color: 'var(--text-primary)',
+                      padding: '10px 20px',
+                      borderRadius: 999,
                       border: '1px solid var(--border)',
+                      background: 'var(--canvas)',
+                      color: 'var(--text-primary)',
                       fontSize: '13px',
-                      cursor: 'pointer',
+                      fontWeight: 500,
                       fontFamily: 'Geist, sans-serif',
+                      cursor: 'pointer',
+                      transition: '150ms ease',
                     }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--hover)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--canvas)'; }}
                   >
                     Edit
                   </button>
                   <button
+                    type="button"
                     onClick={() => handleSignatureSave(pendingSignature)}
-                    className="px-4 py-2.5 rounded-lg"
                     style={{
-                      background: 'var(--text-primary)',
-                      color: 'var(--canvas)',
+                      padding: '10px 24px',
+                      borderRadius: 999,
                       border: 'none',
+                      background: 'var(--text-primary)',
+                      color: 'var(--white)',
                       fontSize: '13px',
-                      cursor: 'pointer',
+                      fontWeight: 500,
                       fontFamily: 'Geist, sans-serif',
+                      cursor: 'pointer',
+                      transition: '150ms ease',
                     }}
+                    onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.9'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
                   >
                     Looks good, continue
                   </button>

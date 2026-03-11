@@ -6,11 +6,15 @@ import {
   MessageSquare,
   Download,
   X,
+  ChevronDown,
+  Square,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import type { ChatMessage as ChatMessageType, ToolResult } from '../../types';
 import FormatBadge from '../ui/FormatBadge';
 import { getFileFormatInfo, getConversionWarning } from '../../lib/fileFormat';
+
+const STUDY_TOOLS = new Set(['summarize_document', 'generate_study_questions', 'extract_key_terms']);
 
 function formatSize(bytes: number): string {
   if (!bytes) return '—';
@@ -48,6 +52,179 @@ function ResultCardInline({ result }: { result: ToolResult }) {
   );
 }
 
+function StudyExportButton({
+  message,
+  onOpenExport,
+}: {
+  message: ChatMessageType;
+  onOpenExport: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onOpenExport}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 4,
+        padding: '6px 10px',
+        fontSize: 12,
+        fontFamily: 'Geist, sans-serif',
+        color: 'var(--accent)',
+        background: 'var(--hover)',
+        border: '1px solid var(--border)',
+        borderRadius: 6,
+        cursor: 'pointer',
+      }}
+    >
+      Export
+      <ChevronDown size={14} strokeWidth={2} style={{ transform: 'rotate(-90deg)' }} />
+    </button>
+  );
+}
+
+function ExportModal({
+  message,
+  resolvedText,
+  onClose,
+}: {
+  message: ChatMessageType;
+  resolvedText?: string;
+  onClose: () => void;
+}) {
+  const [exporting, setExporting] = useState<'pdf' | 'docx' | null>(null);
+  const text = (resolvedText ?? message.result?.textContent ?? message.content ?? '').trim();
+
+  const handlePlainText = () => {
+    if (message.result?.downloadUrl) {
+      const a = document.createElement('a');
+      a.href = message.result.downloadUrl;
+      a.download = message.result.fileName ?? 'export.txt';
+      a.rel = 'noopener noreferrer';
+      a.click();
+    }
+    onClose();
+  };
+
+  const handleExport = async (format: 'pdf' | 'docx') => {
+    if (!text) return;
+    setExporting(format);
+    try {
+      const res = await fetch('/api/export-text', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text,
+          format,
+          fileName: message.result?.fileName?.replace(/\.[^.]+$/, '') ?? 'export',
+        }),
+      });
+      if (!res.ok) throw new Error('Export failed');
+      const blob = await res.blob();
+      const disposition = res.headers.get('Content-Disposition');
+      const match = disposition?.match(/filename="?([^";\n]+)"?/);
+      const name = match?.[1] ?? `export.${format === 'pdf' ? 'pdf' : 'docx'}`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = name;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setExporting(null);
+      onClose();
+    }
+  };
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="export-modal-title"
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 100,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'rgba(0,0,0,0.4)',
+      }}
+      onClick={onClose}
+    >
+      <div
+        style={{
+          background: 'var(--white)',
+          border: '1px solid var(--border)',
+          borderRadius: 12,
+          padding: 20,
+          minWidth: 280,
+          boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 id="export-modal-title" style={{ fontSize: 14, fontWeight: 600, margin: '0 0 12px' }}>
+          How would you like to export?
+        </h3>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {message.result?.downloadUrl && (
+            <button
+              type="button"
+              onClick={handlePlainText}
+              style={{
+                padding: '10px 14px',
+                fontSize: 13,
+                textAlign: 'left',
+                background: 'var(--hover)',
+                border: '1px solid var(--border)',
+                borderRadius: 8,
+                cursor: 'pointer',
+                fontFamily: 'Geist, sans-serif',
+              }}
+            >
+              Plain text
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => handleExport('pdf')}
+            disabled={!text || exporting !== null}
+            style={{
+              padding: '10px 14px',
+              fontSize: 13,
+              textAlign: 'left',
+              background: 'var(--hover)',
+              border: '1px solid var(--border)',
+              borderRadius: 8,
+              cursor: text && !exporting ? 'pointer' : 'not-allowed',
+              fontFamily: 'Geist, sans-serif',
+            }}
+          >
+            {exporting === 'pdf' ? 'Exporting…' : 'PDF'}
+          </button>
+          <button
+            type="button"
+            onClick={() => handleExport('docx')}
+            disabled={!text || exporting !== null}
+            style={{
+              padding: '10px 14px',
+              fontSize: 13,
+              textAlign: 'left',
+              background: 'var(--hover)',
+              border: '1px solid var(--border)',
+              borderRadius: 8,
+              cursor: text && !exporting ? 'pointer' : 'not-allowed',
+              fontFamily: 'Geist, sans-serif',
+            }}
+          >
+            {exporting === 'docx' ? 'Exporting…' : 'Word'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ThinkingDots() {
   return (
     <div className="flex items-center gap-1" style={{ padding: '10px 14px' }}>
@@ -73,8 +250,12 @@ interface Props {
   onSend: (text: string, files: File[]) => void;
   onClearThread: () => void;
   disabled?: boolean;
-  currentFile: File | null;
-  onClearCurrentFile?: () => void;
+  /** When set and disabled (processing), show a red stop button that calls this to cancel */
+  onStop?: () => void;
+  /** Optional: planner "understanding" shown in a collapsible disclosure */
+  planUnderstanding?: string | null;
+  currentFiles: File[];
+  onClearCurrentFiles?: () => void;
 }
 
 export default function ChatThreadColumn({
@@ -83,13 +264,42 @@ export default function ChatThreadColumn({
   onSend,
   onClearThread,
   disabled,
-  currentFile,
-  onClearCurrentFile,
+  onStop,
+  planUnderstanding,
+  currentFiles,
+  onClearCurrentFiles,
 }: Props) {
   const [text, setText] = useState('');
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
+  const [exportModalMessage, setExportModalMessage] = useState<ChatMessageType | null>(null);
+  const [exportModalResolvedText, setExportModalResolvedText] = useState<string | undefined>(undefined);
+  const [fetchedStudyContent, setFetchedStudyContent] = useState<Record<string, string>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
+
+  const fetchedStudyIdsRef = useRef<Set<string>>(new Set());
+  // Fallback: fetch study-tool result from downloadUrl when textContent is missing
+  useEffect(() => {
+    messages.forEach((msg) => {
+      if (
+        msg.role !== 'corner' ||
+        !msg.result ||
+        (!STUDY_TOOLS.has(msg.toolName ?? '') && !STUDY_TOOLS.has(msg.result.studyTool ?? '')) ||
+        (msg.result.textContent ?? msg.content)?.trim() ||
+        !msg.result.downloadUrl ||
+        fetchedStudyIdsRef.current.has(msg.id)
+      )
+        return;
+      fetchedStudyIdsRef.current.add(msg.id);
+      fetch(msg.result.downloadUrl)
+        .then((r) => r.text())
+        .then((t) => setFetchedStudyContent((prev) => ({ ...prev, [msg.id]: t })))
+        .catch(() => {});
+    });
+  }, [messages]);
+
+  const hasCurrentFiles = currentFiles.length > 0;
+  const firstFile = currentFiles[0] ?? attachedFiles[0] ?? null;
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -98,18 +308,17 @@ export default function ChatThreadColumn({
   const [conversionWarning, setConversionWarning] = useState<string | null>(null);
 
   useEffect(() => {
-    const file = currentFile ?? attachedFiles[0] ?? null;
-    if (file) {
-      setConversionWarning(getConversionWarning(getFileFormatInfo(file.name)));
+    if (firstFile) {
+      setConversionWarning(getConversionWarning(getFileFormatInfo(firstFile.name)));
     } else {
       setConversionWarning(null);
     }
-  }, [currentFile?.name, attachedFiles.length]);
+  }, [firstFile?.name, attachedFiles.length, currentFiles.length]);
 
-  const canSend = !!(text.trim() || attachedFiles.length > 0 || currentFile) && !disabled;
+  const canSend = !!(text.trim() || attachedFiles.length > 0 || hasCurrentFiles) && !disabled;
   const handleSend = () => {
     if (!canSend) return;
-    const files = attachedFiles.length > 0 ? attachedFiles : currentFile ? [currentFile] : [];
+    const files = attachedFiles.length > 0 ? attachedFiles : currentFiles;
     onSend(text.trim(), files);
     setText('');
     setAttachedFiles([]);
@@ -162,6 +371,27 @@ export default function ChatThreadColumn({
         className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-3"
         style={{ padding: 16 }}
       >
+        {planUnderstanding && (
+          <details
+            style={{
+              alignSelf: 'flex-start',
+              maxWidth: '90%',
+              padding: '8px 10px',
+              background: 'var(--white)',
+              border: '1px solid var(--border)',
+              borderRadius: 10,
+              fontSize: 12,
+              color: 'var(--text-muted)',
+              fontFamily: 'var(--chat-font-family)',
+            }}
+          >
+            <summary style={{ cursor: 'pointer', userSelect: 'none' }}>Analysis</summary>
+            <div style={{ marginTop: 8, whiteSpace: 'pre-wrap', color: 'var(--text-primary)' }}>
+              {planUnderstanding}
+            </div>
+          </details>
+        )}
+
         {messages.length === 0 && !isProcessing && (
           <div
             className="flex flex-col items-center justify-center flex-1 gap-2"
@@ -216,6 +446,7 @@ export default function ChatThreadColumn({
                       color: 'var(--white)',
                       borderRadius: '12px 12px 2px 12px',
                       fontSize: 13,
+                      fontFamily: 'var(--chat-font-family)',
                     }}
                   >
                     {msg.content?.trim() || (msg.attachmentName ? `Sent ${msg.attachmentName}` : '')}
@@ -226,6 +457,9 @@ export default function ChatThreadColumn({
           }
 
           // corner (AI)
+          const isStudyTool = msg.result && (STUDY_TOOLS.has(msg.toolName ?? '') || STUDY_TOOLS.has(msg.result.studyTool ?? ''));
+          const studyBodyContent = msg.result?.textContent ?? msg.content ?? fetchedStudyContent[msg.id];
+          const hasStudyContent = (studyBodyContent ?? '').trim().length > 0;
           return (
             <div key={msg.id} className="flex justify-start">
               <div
@@ -237,6 +471,7 @@ export default function ChatThreadColumn({
                   borderRadius: '12px 12px 12px 2px',
                   fontSize: 13,
                   lineHeight: 1.6,
+                  fontFamily: 'var(--chat-font-family)',
                 }}
               >
                 <div className="chat-thread-markdown">
@@ -250,10 +485,22 @@ export default function ChatThreadColumn({
                       h3: ({ children }) => <h3 style={{ fontSize: 13, fontWeight: 600, margin: '0.5em 0 0.25em' }}>{children}</h3>,
                     }}
                   >
-                    {msg.content}
+                    {isStudyTool ? (hasStudyContent ? studyBodyContent : 'Loading…') : msg.content}
                   </ReactMarkdown>
                 </div>
-                {msg.result && <ResultCardInline result={msg.result} />}
+                {isStudyTool ? (
+                  <div style={{ marginTop: 8 }}>
+                    <StudyExportButton
+                      message={msg}
+                      onOpenExport={() => {
+                        setExportModalMessage(msg);
+                        setExportModalResolvedText(msg.result?.textContent ?? msg.content ?? fetchedStudyContent[msg.id]);
+                      }}
+                    />
+                  </div>
+                ) : msg.result ? (
+                  <ResultCardInline result={msg.result} />
+                ) : null}
               </div>
             </div>
           );
@@ -275,42 +522,43 @@ export default function ChatThreadColumn({
           transition: 'border-color 150ms ease',
         }}
       >
-        {currentFile && onClearCurrentFile && (
+        {hasCurrentFiles && onClearCurrentFiles && (
           <div className="flex flex-col gap-1.5">
-            <div className="flex items-center gap-2">
-              <div
-                className="flex items-center gap-1.5 rounded-md flex-1 min-w-0"
-                style={{
-                  padding: '4px 6px 4px 6px',
-                  background: 'var(--hover)',
-                  fontSize: 11,
-                  color: 'var(--text-muted)',
-                  maxWidth: '100%',
-                }}
-              >
-                <FormatBadge fileName={currentFile.name} size="sm" />
-                <span className="truncate">{currentFile.name}</span>
-                <button
-                  type="button"
-                  onClick={onClearCurrentFile}
-                  aria-label="Remove document"
+            <div className="flex flex-wrap items-center gap-2">
+              {currentFiles.map((file, i) => (
+                <div
+                  key={`current-${i}-${file.name}`}
+                  className="flex items-center gap-1.5 rounded-md min-w-0"
                   style={{
-                    padding: 2,
-                    marginLeft: 2,
-                    background: 'none',
-                    border: 'none',
-                    cursor: 'pointer',
+                    padding: '4px 6px',
+                    background: 'var(--hover)',
+                    fontSize: 11,
                     color: 'var(--text-muted)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
+                    maxWidth: '100%',
                   }}
                 >
-                  <X size={12} strokeWidth={2} />
-                </button>
-              </div>
+                  <FormatBadge fileName={file.name} size="sm" />
+                  <span className="truncate">{file.name}</span>
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={onClearCurrentFiles}
+                aria-label="Remove documents"
+                style={{
+                  padding: '2px 8px',
+                  fontSize: 11,
+                  border: '1px solid var(--border)',
+                  borderRadius: 6,
+                  background: 'transparent',
+                  color: 'var(--text-muted)',
+                  cursor: 'pointer',
+                }}
+              >
+                Clear all
+              </button>
             </div>
-            {conversionWarning && (
+            {conversionWarning && firstFile && (
               <div
                 style={{
                   padding: '8px 10px',
@@ -327,7 +575,7 @@ export default function ChatThreadColumn({
                   <button
                     type="button"
                     onClick={() => {
-                      onSend(`Convert ${currentFile.name} to PDF`, []);
+                      onSend(`Convert ${firstFile.name} to PDF`, []);
                       setConversionWarning(null);
                     }}
                     style={{
@@ -362,6 +610,38 @@ export default function ChatThreadColumn({
                 </div>
               </div>
             )}
+          </div>
+        )}
+        {(hasCurrentFiles || attachedFiles.length > 0) && (
+          <div className="flex flex-wrap items-center gap-2" style={{ marginBottom: 6 }}>
+            {[
+              { label: 'Summarize', msg: 'Summarize this document' },
+              { label: 'Study questions', msg: 'Generate study questions from this document' },
+              { label: 'Key terms', msg: 'Extract key terms and definitions' },
+              { label: 'Get citation', msg: 'Get citation for this document' },
+            ].map(({ label, msg }) => (
+              <button
+                key={label}
+                type="button"
+                onClick={() => {
+                  const files = attachedFiles.length > 0 ? attachedFiles : currentFiles;
+                  onSend(msg, files);
+                }}
+                disabled={disabled}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: 8,
+                  fontSize: 12,
+                  fontWeight: 500,
+                  border: '1px solid var(--border)',
+                  background: 'transparent',
+                  color: 'var(--text-primary)',
+                  cursor: disabled ? 'default' : 'pointer',
+                }}
+              >
+                {label}
+              </button>
+            ))}
           </div>
         )}
         <div className="flex items-center gap-1" style={{ height: 44 }}>
@@ -402,34 +682,67 @@ export default function ChatThreadColumn({
           rows={1}
           className="flex-1 resize-none bg-transparent outline-none min-h-0"
           style={{
-            fontFamily: 'Geist, sans-serif',
+            fontFamily: 'var(--chat-font-family)',
             fontSize: 13,
             color: 'var(--text-primary)',
             border: 'none',
             caretColor: 'var(--accent)',
           }}
         />
-        <button
-          type="button"
-          onClick={handleSend}
-          disabled={!canSend}
-          style={{
-            width: 28,
-            height: 28,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: canSend ? 'var(--accent)' : 'transparent',
-            color: canSend ? 'var(--white)' : 'var(--text-muted)',
-            border: 'none',
-            borderRadius: 6,
-            cursor: canSend ? 'pointer' : 'default',
-          }}
-        >
-          <ArrowUp size={14} strokeWidth={2} />
-        </button>
+        {disabled && onStop ? (
+          <button
+            type="button"
+            onClick={onStop}
+            aria-label="Stop"
+            title="Stop"
+            style={{
+              width: 28,
+              height: 28,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: '#dc2626',
+              color: 'var(--white)',
+              border: 'none',
+              borderRadius: 6,
+              cursor: 'pointer',
+            }}
+          >
+            <Square size={14} fill="currentColor" stroke="none" />
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={handleSend}
+            disabled={!canSend}
+            style={{
+              width: 28,
+              height: 28,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: canSend ? 'var(--accent)' : 'transparent',
+              color: canSend ? 'var(--white)' : 'var(--text-muted)',
+              border: 'none',
+              borderRadius: 6,
+              cursor: canSend ? 'pointer' : 'default',
+            }}
+          >
+            <ArrowUp size={14} strokeWidth={2} />
+          </button>
+        )}
         </div>
       </div>
+      {exportModalMessage && (
+        <ExportModal
+          message={exportModalMessage}
+          resolvedText={exportModalResolvedText}
+          onClose={() => {
+            setExportModalMessage(null);
+            setExportModalResolvedText(undefined);
+          }}
+        />
+      )}
     </div>
   );
 }

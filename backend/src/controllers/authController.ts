@@ -104,13 +104,13 @@ export async function login(req: Request, res: Response, next: NextFunction): Pr
   try {
     const user = await User.findOne({ email: email.toLowerCase().trim() }).select('+passwordHash');
     if (!user) {
-      next(createError(401, 'Invalid credentials', 'INVALID_CREDENTIALS'));
+      next(createError(401, 'No account found with this email', 'USER_NOT_FOUND'));
       return;
     }
 
     const valid = await bcrypt.compare(password, user.passwordHash);
     if (!valid) {
-      next(createError(401, 'Invalid credentials', 'INVALID_CREDENTIALS'));
+      next(createError(401, 'Incorrect password', 'INVALID_CREDENTIALS'));
       return;
     }
 

@@ -1,3 +1,5 @@
+import { useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import {
   Clock,
   Star,
@@ -8,6 +10,8 @@ import {
   LogIn,
   LogOut,
   ChevronLeft,
+  Plus,
+  Folder,
   type LucideIcon,
 } from 'lucide-react';
 import FormatBadge from '../ui/FormatBadge';
@@ -19,6 +23,8 @@ export interface VersionNode {
   operation: string;
   timestamp: Date;
   isActive: boolean;
+  pinned?: boolean;
+  folderId?: string;
 }
 
 export interface User {
@@ -38,14 +44,21 @@ export interface Props {
   onSignIn: () => void;
   onSignOut: () => void;
   onOpenSettings: () => void;
+  onNewFlow?: () => void;
   onNavSelect: (item: 'recent' | 'starred' | 'trash') => void;
   activeNav: 'recent' | 'starred' | 'trash';
   onToggle?: () => void;
+  onDeleteConversation?: (id: string) => void;
+  onStarConversation?: (id: string, pinned: boolean) => void;
+  onArchiveConversation?: (id: string, archived: boolean) => void;
+  /** When user clicks Folders in nav, open the folders screen */
+  onOpenFolders?: () => void;
 }
 
-const NAV_ITEMS: { id: 'recent' | 'starred' | 'trash'; label: string; Icon: LucideIcon }[] = [
+const NAV_ITEMS: { id: 'recent' | 'starred' | 'trash' | 'folders'; label: string; Icon: LucideIcon }[] = [
   { id: 'recent', label: 'Recent', Icon: Clock },
   { id: 'starred', label: 'Starred', Icon: Star },
+  { id: 'folders', label: 'Folders', Icon: Folder },
   { id: 'trash', label: 'Trash', Icon: Trash2 },
 ];
 
@@ -115,10 +128,18 @@ export default function LeftPanel({
   onSignIn,
   onSignOut,
   onOpenSettings,
+  onNewFlow,
   onNavSelect,
   activeNav,
   onToggle,
+  onDeleteConversation,
+  onStarConversation,
+  onArchiveConversation,
+  onOpenFolders,
 }: Props) {
+  const location = useLocation();
+  const isFoldersRoute = location.pathname.startsWith('/folders');
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
 
   if (!isOpen) {
     return (
@@ -170,22 +191,53 @@ export default function LeftPanel({
           className="flex items-center justify-between"
           style={{ height: 48, paddingLeft: 16, paddingRight: 12 }}
         >
-          <div className="flex items-center gap-2 min-w-0">
-            <img
-              src="/CornerLogo.svg"
-              alt="Corner"
-              style={{ height: 24, width: 'auto', display: 'block', flexShrink: 0 }}
-            />
-            <span
-              style={{
-                fontSize: 18,
-                fontWeight: 800,
-                color: '#8B7355',
+          {onNewFlow ? (
+            <button
+              type="button"
+              onClick={onNewFlow}
+              className="flex items-center gap-2 min-w-0 border-0 bg-transparent cursor-pointer rounded-lg transition-colors"
+              style={{ fontFamily: 'inherit', padding: '6px 8px' }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'var(--hover)';
               }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'transparent';
+              }}
+              aria-label="Corner – New flow"
             >
-              Corner
-            </span>
-          </div>
+              <img
+                src="/CornerLogo.svg"
+                alt=""
+                style={{ height: 24, width: 'auto', display: 'block', flexShrink: 0 }}
+              />
+              <span
+                style={{
+                  fontSize: 18,
+                  fontWeight: 800,
+                  color: '#8B7355',
+                }}
+              >
+                Corner
+              </span>
+            </button>
+          ) : (
+            <div className="flex items-center gap-2 min-w-0">
+              <img
+                src="/CornerLogo.svg"
+                alt="Corner"
+                style={{ height: 24, width: 'auto', display: 'block', flexShrink: 0 }}
+              />
+              <span
+                style={{
+                  fontSize: 18,
+                  fontWeight: 800,
+                  color: '#8B7355',
+                }}
+              >
+                Corner
+              </span>
+            </div>
+          )}
           {onToggle && (
             <button
               type="button"
@@ -215,21 +267,21 @@ export default function LeftPanel({
             </button>
           )}
         </div>
-        {NAV_ITEMS.map(({ id, label, Icon }) => (
+        {onNewFlow && (
           <button
-            key={id}
             type="button"
-            onClick={() => onNavSelect(id)}
+            onClick={onNewFlow}
             style={{
               width: '100%',
               height: 34,
               paddingLeft: 16,
               paddingRight: 16,
+              marginBottom: 4,
               display: 'flex',
               alignItems: 'center',
               gap: 10,
               border: 'none',
-              background: activeNav === id ? 'rgba(0,0,0,0.06)' : 'transparent',
+              background: 'transparent',
               borderRadius: 6,
               cursor: 'pointer',
               color: 'inherit',
@@ -238,16 +290,60 @@ export default function LeftPanel({
               transition: 'background 150ms ease',
             }}
             onMouseEnter={(e) => {
-              if (activeNav !== id) e.currentTarget.style.background = 'var(--hover)';
+              e.currentTarget.style.background = 'var(--hover)';
             }}
             onMouseLeave={(e) => {
-              if (activeNav !== id) e.currentTarget.style.background = 'transparent';
+              e.currentTarget.style.background = 'transparent';
             }}
           >
-            <Icon size={14} strokeWidth={1.5} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
-            <span style={{ color: 'var(--text-primary)', flex: 1, textAlign: 'left' }}>{label}</span>
+            <Plus size={14} strokeWidth={1.5} style={{ color: 'var(--accent)', flexShrink: 0 }} />
+            <span style={{ color: 'var(--text-primary)', flex: 1, textAlign: 'left' }}>New Flow</span>
           </button>
-        ))}
+        )}
+        {NAV_ITEMS.map(({ id, label, Icon }) => {
+          const pathname = location.pathname;
+          const isActive =
+            id === 'recent'
+              ? pathname === '/recent'
+              : id === 'starred'
+                ? pathname === '/starred'
+                : id === 'folders'
+                  ? pathname.startsWith('/folders')
+                  : pathname === '/trash';
+          return (
+            <button
+              key={id}
+              type="button"
+              onClick={() => (id === 'folders' ? onOpenFolders?.() : onNavSelect(id as 'recent' | 'starred' | 'trash'))}
+              style={{
+                width: '100%',
+                height: 34,
+                paddingLeft: 16,
+                paddingRight: 16,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                border: 'none',
+                background: isActive ? 'rgba(0,0,0,0.06)' : 'transparent',
+                borderRadius: 6,
+                cursor: 'pointer',
+                color: 'inherit',
+                fontFamily: 'inherit',
+                fontSize: 13,
+                transition: 'background 150ms ease',
+              }}
+              onMouseEnter={(e) => {
+                if (!isActive) e.currentTarget.style.background = 'var(--hover)';
+              }}
+              onMouseLeave={(e) => {
+                if (!isActive) e.currentTarget.style.background = 'transparent';
+              }}
+            >
+              <Icon size={14} strokeWidth={1.5} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+              <span style={{ color: 'var(--text-primary)', flex: 1, textAlign: 'left' }}>{label}</span>
+            </button>
+          );
+        })}
         <div style={{ height: 1, background: 'var(--border)', marginTop: 4 }} />
       </div>
 
@@ -361,61 +457,172 @@ export default function LeftPanel({
                 />
               </div>
               {nodes.map((node) => (
-                <button
+                <div
                   key={node.id}
-                  type="button"
-                  onClick={() => onRestoreVersion(node.id)}
-                  style={{
-                    width: '100%',
-                    minHeight: 48,
-                    padding: '12px 16px',
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    gap: 10,
-                    border: 'none',
-                    borderLeft: node.id === activeNodeId ? '2px solid var(--accent)' : '2px solid transparent',
-                    background: node.id === activeNodeId ? 'rgba(139,115,85,0.06)' : 'transparent',
-                    cursor: 'pointer',
-                    textAlign: 'left',
-                    fontFamily: 'inherit',
-                    transition: 'background 150ms ease, border-color 150ms ease',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'var(--hover)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background =
-                      node.id === activeNodeId ? 'rgba(139,115,85,0.06)' : 'transparent';
-                  }}
+                  style={{ position: 'relative' }}
+                  onMouseEnter={() => setHoveredId(node.id)}
+                  onMouseLeave={() => setHoveredId(null)}
                 >
-                  <FormatBadge fileName={node.fileName} size="sm" />
-                  <div className="min-w-0 flex-1 flex flex-col gap-1">
-                    <div className="flex items-baseline justify-between gap-2 min-w-0">
-                      <span
-                        className="truncate"
-                        style={{
-                          fontSize: 12,
-                          fontWeight: 500,
-                          color: 'var(--text-primary)',
-                          flex: 1,
-                          minWidth: 0,
-                        }}
-                        title={cleanDisplayTitle(node.fileName)}
-                      >
-                        {cleanDisplayTitle(node.fileName)}
-                      </span>
-                      <span
-                        className="shrink-0"
-                        style={{ fontSize: 10, color: 'var(--text-muted)' }}
-                      >
-                        {formatTimeAgo(node.timestamp)}
+                  <button
+                    type="button"
+                    onClick={() => onRestoreVersion(node.id)}
+                    style={{
+                      width: '100%',
+                      minHeight: 48,
+                      padding: '12px 16px',
+                      paddingRight: hoveredId === node.id ? 60 : 16,
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: 10,
+                      border: 'none',
+                      borderLeft: node.id === activeNodeId ? '2px solid var(--accent)' : '2px solid transparent',
+                      background: node.id === activeNodeId ? 'rgba(139,115,85,0.06)' : hoveredId === node.id ? 'var(--hover)' : 'transparent',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      fontFamily: 'inherit',
+                      transition: 'background 150ms ease, border-color 150ms ease',
+                    }}
+                  >
+                    <FormatBadge fileName={node.fileName} size="sm" />
+                    <div className="min-w-0 flex-1 flex flex-col gap-1">
+                      <div className="flex items-baseline justify-between gap-2 min-w-0">
+                        <span
+                          className="truncate"
+                          style={{
+                            fontSize: 12,
+                            fontWeight: 500,
+                            color: 'var(--text-primary)',
+                            flex: 1,
+                            minWidth: 0,
+                          }}
+                          title={cleanDisplayTitle(node.fileName)}
+                        >
+                          {cleanDisplayTitle(node.fileName)}
+                        </span>
+                        <span
+                          className="shrink-0"
+                          style={{ fontSize: 10, color: 'var(--text-muted)' }}
+                        >
+                          {formatTimeAgo(node.timestamp)}
+                        </span>
+                      </div>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                        {displayOperation(node)}
                       </span>
                     </div>
-                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                      {displayOperation(node)}
-                    </span>
-                  </div>
-                </button>
+                  </button>
+
+                  {/* Hover action buttons */}
+                  {hoveredId === node.id && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        right: 8,
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        display: 'flex',
+                        gap: 2,
+                      }}
+                    >
+                      {onStarConversation && activeNav !== 'trash' && (
+                        <button
+                          type="button"
+                          title={node.pinned ? 'Unstar' : 'Star'}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onStarConversation(node.id, !node.pinned);
+                          }}
+                          style={{
+                            width: 24,
+                            height: 24,
+                            borderRadius: 4,
+                            border: 'none',
+                            background: 'none',
+                            color: node.pinned ? '#8B7355' : 'var(--text-muted)',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          <Star size={12} strokeWidth={1.5} fill={node.pinned ? 'currentColor' : 'none'} />
+                        </button>
+                      )}
+                      {onArchiveConversation && activeNav !== 'trash' && (
+                        <button
+                          type="button"
+                          title="Move to trash"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onArchiveConversation(node.id, true);
+                          }}
+                          style={{
+                            width: 24,
+                            height: 24,
+                            borderRadius: 4,
+                            border: 'none',
+                            background: 'none',
+                            color: 'var(--text-muted)',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          <Trash2 size={12} strokeWidth={1.5} />
+                        </button>
+                      )}
+                      {onDeleteConversation && activeNav === 'trash' && (
+                        <button
+                          type="button"
+                          title="Delete permanently"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onDeleteConversation(node.id);
+                          }}
+                          style={{
+                            width: 24,
+                            height: 24,
+                            borderRadius: 4,
+                            border: 'none',
+                            background: 'none',
+                            color: '#ef4444',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          <Trash2 size={12} strokeWidth={1.5} />
+                        </button>
+                      )}
+                      {onArchiveConversation && activeNav === 'trash' && (
+                        <button
+                          type="button"
+                          title="Restore"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onArchiveConversation(node.id, false);
+                          }}
+                          style={{
+                            width: 24,
+                            height: 24,
+                            borderRadius: 4,
+                            border: 'none',
+                            background: 'none',
+                            color: 'var(--text-muted)',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          <RotateCcw size={12} strokeWidth={1.5} />
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
               ))}
             </div>
           ))}

@@ -52,6 +52,12 @@ csv_to_excel, excel_to_csv
 generate_qr — params: { text?: string, url?: string, format?: "png"|"svg" }
 extract_text, extract_images, extract_tables
 
+=== DOCUMENT INTELLIGENCE (study + citation) ===
+summarize_document — summarize the document (overview, main points, takeaways). Use this for: "explain the document", "explain it", "what does this say", "what's this about", "walk me through this", or any request for a text explanation of the content. The user gets the explanation as readable text in the chat.
+generate_study_questions — generate practice exam questions from the document
+extract_key_terms — extract key terms and definitions as a glossary
+generate_citation — params: { style?: "apa"|"mla"|"chicago" } — generate citation from document metadata
+
 RULES:
 1. Return ONLY valid JSON — no markdown fences, no explanation text.
 2. Steps must be ordered — step N's output becomes step N+1's input when requiresPreviousOutput is true.
@@ -60,6 +66,7 @@ RULES:
 5. If confidence < 0.7 or the request is ambiguous, set clarification to a specific question and steps to [].
 6. If request is clear, set clarification to null and populate steps fully.
 7. Only use tool names from the list above.
+8. When the user asks to "explain" the document or "what does this say" or wants a text explanation of the content, use summarize_document (not extract_text). summarize_document produces an explanation shown in the chat; extract_text only returns a raw text file.
 
 Output schema (strict JSON):
 {

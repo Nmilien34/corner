@@ -28,6 +28,9 @@ interface StoredConversation {
   latestResultFileId?: string;
   latestResultFileName?: string;
   latestResultMimeType?: string;
+  archived?: boolean;
+  pinned?: boolean;
+  folderId?: string;
 }
 
 /** Stored message in localStorage. */
@@ -63,6 +66,9 @@ function loadConversationsFromLS(): ConversationListItem[] {
         latestResultFileId: c.latestResultFileId,
         latestResultFileName: c.latestResultFileName,
         latestResultMimeType: c.latestResultMimeType,
+        archived: c.archived ?? false,
+        pinned: c.pinned ?? false,
+        folderId: c.folderId,
       }));
   } catch {
     return [];
@@ -180,6 +186,9 @@ export function useConversations(options: UseConversationsOptions) {
         latestResultFileId: c.latestResultFileId as string | undefined,
         latestResultFileName: c.latestResultFileName as string | undefined,
         latestResultMimeType: c.latestResultMimeType as string | undefined,
+        archived: Boolean(c.archived ?? false),
+        pinned: Boolean(c.pinned ?? false),
+        folderId: c.folderId as string | undefined,
       }));
       setList(items);
     } catch {
@@ -219,6 +228,7 @@ export function useConversations(options: UseConversationsOptions) {
           latestResultFileId: c.latestResultFileId,
           latestResultFileName: c.latestResultFileName,
           latestResultMimeType: c.latestResultMimeType,
+          folderId: c.folderId,
         }));
         saveConversationsToLS([newItem, ...current]);
         setList(loadConversationsFromLS());
@@ -342,6 +352,64 @@ export function useConversations(options: UseConversationsOptions) {
     [isSignedIn, getToken, refreshList]
   );
 
+  const deleteConversation = useCallback(
+    async (conversationId: string): Promise<void> => {
+      if (!isSignedIn || !getToken?.()) {
+        // localStorage path
+        const raw = localStorage.getItem(LS_CONVERSATIONS_KEY);
+        const conversations: StoredConversation[] = raw ? JSON.parse(raw) : [];
+        const next = conversations.filter((c) => c.id !== conversationId);
+        saveConversationsToLS(next);
+        localStorage.removeItem(LS_MESSAGES_PREFIX + conversationId + LS_MESSAGES_SUFFIX);
+        setList(loadConversationsFromLS());
+        return;
+      }
+      const token = getToken();
+      await axios.delete(`/api/conversations/${conversationId}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      await refreshList();
+    },
+    [isSignedIn, getToken, refreshList]
+  );
+
+  const updateConversation = useCallback(
+    async (
+      conversationId: string,
+      patch: { title?: string; archived?: boolean; pinned?: boolean; folderId?: string | null }
+    ): Promise<void> => {
+      if (!isSignedIn || !getToken?.()) {
+        // localStorage path
+        const raw = localStorage.getItem(LS_CONVERSATIONS_KEY);
+        const conversations: StoredConversation[] = raw ? JSON.parse(raw) : [];
+        const conv = conversations.find((c) => c.id === conversationId);
+        if (conv) {
+          if (patch.title !== undefined) conv.title = patch.title.trim().slice(0, 200) || 'New Conversation';
+          if (patch.archived !== undefined) conv.archived = patch.archived;
+          if (patch.pinned !== undefined) conv.pinned = patch.pinned;
+          if (patch.folderId !== undefined) {
+            if (patch.folderId === null || patch.folderId === '') {
+              delete conv.folderId;
+            } else {
+              conv.folderId = patch.folderId;
+            }
+          }
+          saveConversationsToLS(conversations);
+          setList(loadConversationsFromLS());
+        }
+        return;
+      }
+      const token = getToken();
+      await axios.patch(
+        `/api/conversations/${conversationId}`,
+        patch,
+        { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+      );
+      await refreshList();
+    },
+    [isSignedIn, getToken, refreshList]
+  );
+
   const clearAll = useCallback(() => {
     if (isSignedIn && getToken?.()) return; // No API for bulk delete; leave list as-is
     try {
@@ -363,6 +431,8 @@ export function useConversations(options: UseConversationsOptions) {
     createConversation,
     getMessages,
     addMessage,
+    deleteConversation,
+    updateConversation,
     refreshList,
     clearAll,
     getApiBase: () => baseUrl,

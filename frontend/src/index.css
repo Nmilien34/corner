@@ -13,6 +13,7 @@
   --white:         #FFFFFF;
   --hover:         #EDE8E1;
   --topbar-height: 48px;
+  --chat-font-family: 'Geist', 'Geist Variable', ui-sans-serif, system-ui, sans-serif;
   color-scheme: light;
 
   /* ── Semantic aliases (BoltzmanChat naming → Corner values) ── */
@@ -42,6 +43,37 @@
   /* Toast / destructive (error) variant */
   --error: #B91C1C;
   --error-foreground: #FEF2F2;
+}
+
+/* ── Dark theme (class on html) ── */
+html.dark {
+  color-scheme: dark;
+  --bg:            #1A1714;
+  --canvas:        #252119;
+  --text-primary:  #F2EDE6;
+  --text-muted:    #A89880;
+  --accent:        #C4A574;
+  --border:        #3D362D;
+  --white:         #2C2720;
+  --hover:         #352F26;
+  --bg-white-0:      var(--white);
+  --bg-weak-50:      var(--hover);
+  --bg-strong-950:   var(--text-primary);
+  --text-strong-950: var(--text-primary);
+  --text-sub-600:    var(--text-muted);
+  --text-soft-400:   #8B7D6B;
+  --text-disabled:   #5C5248;
+  --stroke-soft-200:   var(--border);
+  --stroke-strong-950: var(--text-primary);
+  --shadow-xs:       0 1px 2px 0 rgba(0,0,0,0.3);
+  --shadow-sm:       0 2px 4px rgba(0,0,0,0.35);
+  --shadow-md:       0 4px 16px -4px rgba(0,0,0,0.4), 0 1px 4px rgba(0,0,0,0.3);
+  --shadow-realistic: 0px 10px 37px 4px rgba(0,0,0,0.25), 0px 1px 5px 0px rgba(0,0,0,0.35);
+  --shadow-focus:    0 0 0 2px var(--white), 0 0 0 4px rgba(196,165,116,0.3);
+  --canvas-dot: rgba(196, 165, 116, 0.08);
+  --canvas-sheet-shadow: 0 2px 8px rgba(0,0,0,0.2), 0 12px 40px -8px rgba(0,0,0,0.35);
+  --error: #F87171;
+  --error-foreground: #450A0A;
 }
 
 *, *::before, *::after {
