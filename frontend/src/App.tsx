@@ -111,6 +111,7 @@ export default function App() {
   const [activeNav, setActiveNav] = useState<'recent' | 'starred' | 'trash'>('recent');
   const [canvasViewMode, setCanvasViewMode] = useState(true); // true = canvas with all frames, false = single doc view
   const [focusedDocumentView, setFocusedDocumentView] = useState(false); // true = full-width doc (State 3), no chat column
+  const [chatCollapsed, setChatCollapsed] = useState(false); // true = chat sidebar hidden, doc goes full-width
   const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null); // object URL for currentFile preview in split
   const auth = useAuth();
   const leftPanelUser: LeftPanelUser | null = auth.user
@@ -722,21 +723,26 @@ export default function App() {
                   onFocus={() => setFocusedDocumentView(true)}
                   previewMode={panelSettings.previewMode ?? 'page'}
                   zoomPercent={panelSettings.zoom ?? 100}
+                  chatCollapsed={chatCollapsed}
+                  onToggleChat={() => setChatCollapsed((v) => !v)}
                 />
-                <ChatThreadColumn
-                  messages={messages}
-                  isProcessing={mode === 'processing'}
-                  onSend={handleSend}
-                  onClearThread={() => setMessages([])}
-                  disabled={mode === 'processing'}
-                  onStop={() => {
-                    setPlanUnderstanding(null);
-                    stopProcessing();
-                  }}
-                  planUnderstanding={planUnderstanding}
-                  currentFiles={currentFiles}
-                  onClearCurrentFiles={currentFiles.length > 0 ? () => setCurrentFiles([]) : undefined}
-                />
+                {!chatCollapsed && (
+                  <ChatThreadColumn
+                    messages={messages}
+                    isProcessing={mode === 'processing'}
+                    onSend={handleSend}
+                    onClearThread={() => setMessages([])}
+                    disabled={mode === 'processing'}
+                    onStop={() => {
+                      setPlanUnderstanding(null);
+                      stopProcessing();
+                    }}
+                    planUnderstanding={planUnderstanding}
+                    currentFiles={currentFiles}
+                    onClearCurrentFiles={currentFiles.length > 0 ? () => setCurrentFiles([]) : undefined}
+                    onCollapse={() => setChatCollapsed(true)}
+                  />
+                )}
               </>
             )}
 
@@ -890,8 +896,8 @@ export default function App() {
 
           </div>
 
-          {/* Floating chat input only when not in split view */}
-          {!showSplit && (
+          {/* Floating chat input when not in split view, or when split but chat is collapsed */}
+          {(!showSplit || chatCollapsed) && (
           <ChatFloat
             messages={messages}
             currentFiles={currentFiles}

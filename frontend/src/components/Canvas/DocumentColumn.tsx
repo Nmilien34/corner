@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Maximize2, ChevronLeft, ChevronRight, Music, FileText } from 'lucide-react';
+import { Maximize2, ChevronLeft, ChevronRight, Music, FileText, PanelRightOpen, PanelRightClose } from 'lucide-react';
 import DocumentViewer from './DocumentViewer';
 import type { ToolResult } from '../../types';
 import FormatBadge from '../ui/FormatBadge';
@@ -17,6 +17,8 @@ interface Props {
   onFocus: () => void;
   previewMode?: 'page' | 'text' | 'frames';
   zoomPercent?: number;
+  chatCollapsed?: boolean;
+  onToggleChat?: () => void;
 }
 
 export default function DocumentColumn({
@@ -29,6 +31,8 @@ export default function DocumentColumn({
   onFocus,
   previewMode = 'page',
   zoomPercent = 100,
+  chatCollapsed,
+  onToggleChat,
 }: Props) {
   const [totalPagesFromViewer, setTotalPagesFromViewer] = useState<number | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -64,8 +68,8 @@ export default function DocumentColumn({
       <div
         className="flex flex-col h-full min-w-0"
         style={{
+          flex: 1,
           minWidth: 400,
-          width: '58%',
           borderRight: '1px solid var(--border)',
           background: 'var(--canvas)',
         }}
@@ -107,6 +111,29 @@ export default function DocumentColumn({
             <Maximize2 size={14} strokeWidth={1.5} />
             Focus
           </button>
+          {onToggleChat && (
+            <button
+              type="button"
+              onClick={onToggleChat}
+              title={chatCollapsed ? 'Show chat' : 'Hide chat'}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 28,
+                height: 28,
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: 'var(--text-muted)',
+                borderRadius: 6,
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--accent)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-muted)'; }}
+            >
+              {chatCollapsed ? <PanelRightOpen size={14} strokeWidth={1.5} /> : <PanelRightClose size={14} strokeWidth={1.5} />}
+            </button>
+          )}
         </div>
 
         {/* Audio content */}
@@ -227,13 +254,13 @@ export default function DocumentColumn({
     <div
       className="flex flex-col h-full min-w-0"
       style={{
+        flex: 1,
         minWidth: 400,
-        width: '58%',
         borderRight: '1px solid var(--border)',
         background: 'var(--canvas)',
       }}
     >
-      {/* Toolbar: 40px, filename, type badge, page count, Focus */}
+      {/* Toolbar: 40px, filename, type badge, page count, Focus, Chat toggle */}
       <div
         className="shrink-0 flex items-center gap-2 px-3"
         style={{
@@ -279,6 +306,29 @@ export default function DocumentColumn({
           <Maximize2 size={14} strokeWidth={1.5} />
           Focus
         </button>
+        {onToggleChat && (
+          <button
+            type="button"
+            onClick={onToggleChat}
+            title={chatCollapsed ? 'Show chat' : 'Hide chat'}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 28,
+              height: 28,
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              color: 'var(--text-muted)',
+              borderRadius: 6,
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--accent)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-muted)'; }}
+          >
+            {chatCollapsed ? <PanelRightOpen size={14} strokeWidth={1.5} /> : <PanelRightClose size={14} strokeWidth={1.5} />}
+          </button>
+        )}
       </div>
 
       {/* Document view — own scroll */}

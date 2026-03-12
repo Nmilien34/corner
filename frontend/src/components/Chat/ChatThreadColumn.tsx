@@ -7,6 +7,7 @@ import {
   Download,
   X,
   ChevronDown,
+  ChevronRight,
   Square,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
@@ -257,6 +258,8 @@ interface Props {
   planUnderstanding?: string | null;
   currentFiles: File[];
   onClearCurrentFiles?: () => void;
+  /** When provided, renders a collapse button in the header */
+  onCollapse?: () => void;
 }
 
 export default function ChatThreadColumn({
@@ -269,6 +272,7 @@ export default function ChatThreadColumn({
   planUnderstanding,
   currentFiles,
   onClearCurrentFiles,
+  onCollapse,
 }: Props) {
   const [text, setText] = useState('');
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
@@ -334,23 +338,42 @@ export default function ChatThreadColumn({
 
   return (
     <div
-      className="flex flex-col h-full min-w-0"
+      className="flex flex-col h-full"
       style={{
-        minWidth: 300,
-        width: '42%',
+        width: 260,
+        flexShrink: 0,
         background: 'var(--white)',
         fontFamily: 'Geist, sans-serif',
+        borderLeft: '1px solid var(--border)',
       }}
     >
-      {/* Thread header */}
+      {/* Thread header — two icon buttons, no label */}
       <div
-        className="shrink-0 flex items-center justify-between px-4"
+        className="shrink-0 flex items-center justify-between px-2"
         style={{
           height: 40,
           borderBottom: '1px solid var(--border)',
         }}
       >
-        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Conversation</span>
+        {onCollapse ? (
+          <button
+            type="button"
+            onClick={onCollapse}
+            title="Collapse chat"
+            style={{
+              padding: 4,
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              color: 'var(--text-muted)',
+              display: 'flex',
+              alignItems: 'center',
+            }}
+            aria-label="Collapse chat panel"
+          >
+            <ChevronRight size={14} strokeWidth={1.5} />
+          </button>
+        ) : <div />}
         <button
           type="button"
           onClick={onClearThread}
@@ -369,8 +392,8 @@ export default function ChatThreadColumn({
 
       {/* Message list — scrollable */}
       <div
-        className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-3"
-        style={{ padding: 16 }}
+        className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-2"
+        style={{ padding: 12 }}
       >
         {planUnderstanding && (
           <details
@@ -448,11 +471,11 @@ export default function ChatThreadColumn({
                   )}
                   <div
                     style={{
-                      padding: '8px 12px',
+                      padding: '6px 10px',
                       background: 'var(--text-primary)',
                       color: 'var(--white)',
-                      borderRadius: '12px 12px 2px 12px',
-                      fontSize: 13,
+                      borderRadius: '10px 10px 2px 10px',
+                      fontSize: 12,
                       fontFamily: 'var(--chat-font-family)',
                     }}
                   >
@@ -471,13 +494,13 @@ export default function ChatThreadColumn({
             <div key={msg.id} className="flex justify-start">
               <div
                 style={{
-                  maxWidth: '90%',
-                  padding: '10px 14px',
+                  maxWidth: '92%',
+                  padding: '8px 10px',
                   background: 'var(--white)',
                   border: '1px solid var(--border)',
-                  borderRadius: '12px 12px 12px 2px',
-                  fontSize: 13,
-                  lineHeight: 1.6,
+                  borderRadius: '10px 10px 10px 2px',
+                  fontSize: 12,
+                  lineHeight: 1.5,
                   fontFamily: 'var(--chat-font-family)',
                 }}
               >
@@ -529,8 +552,8 @@ export default function ChatThreadColumn({
       <div
         className="shrink-0 flex flex-col gap-1 chat-thread-input-wrap"
         style={{
-          margin: '0 12px 12px',
-          padding: '8px 10px',
+          margin: '0 8px 8px',
+          padding: '6px 8px',
           background: 'var(--white)',
           border: '1px solid var(--border)',
           borderRadius: 10,
@@ -693,7 +716,7 @@ export default function ChatThreadColumn({
           onChange={(e) => setText(e.target.value)}
           onKeyDown={handleKeyDown}
           disabled={disabled}
-          placeholder="ask anything about this document..."
+          placeholder="type a command..."
           rows={1}
           className="flex-1 resize-none bg-transparent outline-none min-h-0"
           style={{
