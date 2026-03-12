@@ -896,8 +896,8 @@ export default function App() {
 
           </div>
 
-          {/* Floating chat input when not in split view, or when split but chat is collapsed */}
-          {(!showSplit || chatCollapsed) && (
+          {/* Floating chat input only when not in split view — when chat is collapsed, use the toolbar toggle */}
+          {!showSplit && (
           <ChatFloat
             messages={messages}
             currentFiles={currentFiles}

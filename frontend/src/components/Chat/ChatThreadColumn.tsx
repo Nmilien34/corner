@@ -340,7 +340,9 @@ export default function ChatThreadColumn({
     <div
       className="flex flex-col h-full"
       style={{
-        width: 260,
+        width: '36%',
+        minWidth: 300,
+        maxWidth: 480,
         flexShrink: 0,
         background: 'var(--white)',
         fontFamily: 'Geist, sans-serif',
