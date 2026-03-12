@@ -1,7 +1,13 @@
+import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 import { runHeadChef } from './headChefService';
 import { runSousChef } from './sousChefService';
-import type { FileMetadata, OrchestrateEvent, OrchestrateResult, ToolResult } from '@corner/shared';
+import { quickClassify } from './quickClassifyService';
+import { executeTool, isKnownTool } from './toolService';
+import { saveFileRecord } from './fileService';
+import type { FileMetadata, OrchestrateEvent, OrchestrateResult, ToolResult, StepResult, StudyToolName } from '@corner/shared';
+
+const STUDY_TOOLS = new Set(['summarize_document', 'generate_study_questions', 'extract_key_terms']);
 
 export interface OrchestrateOptions {
   message: string;
@@ -15,30 +21,93 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<Orchestrate
   const { message, files, userId, onEvent } = opts;
   const sessionId = opts.sessionId ?? uuidv4();
 
-  // 1. Notify frontend that planning has started
   onEvent({ type: 'planning', sessionId, message: 'Analyzing your request...' });
 
-  // 2. Build file metadata for Head Chef (no actual file bytes)
   const fileMetadata: FileMetadata[] = files.map((f, i) => ({
-    name: f.originalname,
-    type: f.mimetype,
-    size: f.size,
-    index: i,
+    name: f.originalname, type: f.mimetype, size: f.size, index: i,
   }));
 
-  // 3. Head Chef produces the plan
+  // ── Fast-path: cheap Haiku classifier (~200 ms) before spinning up Opus ──
+  const cls = await quickClassify(message, fileMetadata);
+
+  if (cls.type === 'direct' && isKnownTool(cls.toolName)) {
+    const toolName = cls.toolName;
+    const params = cls.params;
+
+    const fastPlan = {
+      understanding: message,
+      clarification: null,
+      confidence: 0.95,
+      steps: [{
+        toolName, params,
+        description: `Running ${toolName}`,
+        reasoning: 'Fast-path classification',
+        requiresPreviousOutput: false,
+      }],
+    };
+
+    onEvent({ type: 'plan_ready', sessionId, plan: fastPlan });
+    onEvent({ type: 'step_start', sessionId, stepIndex: 0, tool: toolName, description: fastPlan.steps[0].description });
+
+    try {
+      const rawResult = await executeTool(toolName, files, params);
+      if (rawResult.isStub) throw new Error(`Tool '${toolName}' is not yet implemented`);
+
+      const fileId = await saveFileRecord({
+        filePath: rawResult.filePath,
+        fileName: rawResult.fileName,
+        toolName,
+        params,
+        mimeType: rawResult.mimeType,
+        sizeBytes: rawResult.sizeBytes,
+        userId,
+      });
+
+      const finalResult: ToolResult = {
+        fileId,
+        downloadUrl: `/api/file/${fileId}`,
+        fileName: rawResult.fileName,
+        mimeType: rawResult.mimeType,
+        sizeBytes: rawResult.sizeBytes,
+      };
+
+      if (STUDY_TOOLS.has(toolName)) {
+        try {
+          finalResult.textContent = fs.readFileSync(rawResult.filePath, 'utf-8');
+          finalResult.studyTool = toolName as StudyToolName;
+        } catch (_) { /* non-critical */ }
+      }
+
+      if (rawResult.transcriptionResult) {
+        finalResult.transcriptionResult = rawResult.transcriptionResult;
+        finalResult.formattedTranscript = rawResult.formattedTranscript;
+        finalResult.durationLabel = rawResult.durationLabel;
+      }
+
+      const stepResult: StepResult = { stepIndex: 0, toolName, success: true, result: finalResult };
+      onEvent({ type: 'step_complete', sessionId, stepIndex: 0, tool: toolName, result: finalResult });
+      onEvent({ type: 'done', sessionId, finalResult, allSteps: [stepResult] });
+
+      return { sessionId, plan: fastPlan, steps: [stepResult], finalResult, message: fastPlan.understanding };
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Tool failed';
+      const stepResult: StepResult = { stepIndex: 0, toolName, success: false, error: errorMsg };
+      onEvent({ type: 'step_error', sessionId, stepIndex: 0, tool: toolName, error: errorMsg });
+      onEvent({ type: 'error', sessionId, message: errorMsg });
+      return { sessionId, plan: fastPlan, steps: [stepResult], finalResult: null, message: errorMsg };
+    }
+  }
+
+  // ── Full orchestration for complex / multi-step / ambiguous requests ──
   const plan = await runHeadChef(message, fileMetadata);
 
-  // 4. If clarification needed, stop here
   if (plan.clarification && plan.steps.length === 0) {
     onEvent({ type: 'clarification', sessionId, question: plan.clarification });
     return { sessionId, plan, steps: [], finalResult: null, message: plan.clarification };
   }
 
-  // 5. Broadcast plan to frontend
   onEvent({ type: 'plan_ready', sessionId, plan });
 
-  // 6. Sous Chef executes the plan
   const stepResults = await runSousChef({
     plan,
     files,
@@ -46,11 +115,9 @@ export async function orchestrate(opts: OrchestrateOptions): Promise<Orchestrate
     onEvent: (event) => onEvent({ ...event, sessionId }),
   });
 
-  // 7. Final result = last successful step's output
   const lastSuccess = stepResults.filter((s) => s.success).pop();
   const finalResult: ToolResult | null = lastSuccess?.result ?? null;
 
-  // 8. Signal completion
   onEvent({ type: 'done', sessionId, finalResult, allSteps: stepResults });
 
   return { sessionId, plan, steps: stepResults, finalResult, message: plan.understanding };
