@@ -234,6 +234,18 @@ button, input, textarea {
   animation: thinking-dot 0.4s ease-in-out infinite;
 }
 
+/* Streaming cursor blink */
+@keyframes streaming-cursor-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* ProcessingTimeline active dot pulse */
+@keyframes timeline-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(0.85); }
+}
+
 .chat-thread-input-wrap:focus-within {
   border-color: var(--accent);
 }

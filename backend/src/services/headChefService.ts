@@ -67,6 +67,8 @@ RULES:
 6. If request is clear, set clarification to null and populate steps fully.
 7. Only use tool names from the list above.
 8. When the user asks to "explain" the document or "what does this say" or wants a text explanation of the content, use summarize_document (not extract_text). summarize_document produces an explanation shown in the chat; extract_text only returns a raw text file.
+9. The "understanding" field is shown directly to the user as a confirmation message. Write it in first-person collaborative voice using "We'll" for actions and "your" for the user's files — e.g. "We'll compress your PDF to reduce its file size." or "We'll convert your Word document to PDF and then add a watermark." Keep it to 1 sentence.
+10. Each step's "description" field is also shown to the user as a progress label. Write it the same way — e.g. "We'll split your PDF into individual pages" or "We'll remove the background from your image."
 
 Output schema (strict JSON):
 {
@@ -119,14 +121,24 @@ export async function runHeadChef(
       ).join('\n')}`
     : '\n\nNo files uploaded.';
 
-  const response = await client.messages.create({
+  // Stream response tokens — faster plan delivery without blocking until full response
+  const stream = await client.messages.create({
     model: 'claude-opus-4-6',
     max_tokens: 2048,
+    stream: true,
     system: HEAD_CHEF_SYSTEM,
     messages: [{ role: 'user', content: `User request: "${message}"${fileContext}` }],
   });
 
-  const text = response.content[0].type === 'text' ? response.content[0].text : '{}';
+  let text = '';
+  for await (const event of stream) {
+    if (
+      event.type === 'content_block_delta' &&
+      event.delta.type === 'text_delta'
+    ) {
+      text += event.delta.text;
+    }
+  }
   // Extract first complete JSON object using brace counting (handles extra text / multiple objects)
   const jsonStr = extractFirstJson(text);
   const plan = JSON.parse(jsonStr) as ChefPlan;

@@ -74,6 +74,8 @@ export interface ChatMessage {
   result?: ToolResult
   /** When set, used to show inline text + Export for study tools */
   toolName?: string
+  /** When true, show a blinking cursor (thinking_chunk is still streaming) */
+  streaming?: boolean
 }
 
 export interface SavedSignature {

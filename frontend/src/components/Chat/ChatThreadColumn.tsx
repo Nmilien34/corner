@@ -13,6 +13,7 @@ import ReactMarkdown from 'react-markdown';
 import type { ChatMessage as ChatMessageType, ToolResult } from '../../types';
 import FormatBadge from '../ui/FormatBadge';
 import { getFileFormatInfo, getConversionWarning } from '../../lib/fileFormat';
+import FollowUpActions from './FollowUpActions';
 
 const STUDY_TOOLS = new Set(['summarize_document', 'generate_study_questions', 'extract_key_terms']);
 
@@ -403,7 +404,13 @@ export default function ChatThreadColumn({
           </div>
         )}
 
-        {messages.map((msg) => {
+        {(() => {
+          const lastResultMsg = [...messages].reverse().find(
+            (m) => m.role === 'corner' && (m.result || m.toolName)
+          );
+          const lastResultMsgId = lastResultMsg?.id;
+
+          return messages.map((msg) => {
           if (msg.role === 'system') {
             return (
               <div
@@ -501,10 +508,18 @@ export default function ChatThreadColumn({
                 ) : msg.result ? (
                   <ResultCardInline result={msg.result} />
                 ) : null}
+                {msg.id === lastResultMsgId && msg.toolName && (
+                  <FollowUpActions
+                    toolName={msg.toolName}
+                    onSend={(m) => onSend(m, currentFiles.length > 0 ? currentFiles : attachedFiles)}
+                    disabled={disabled}
+                  />
+                )}
               </div>
             </div>
           );
-        })}
+        });
+        })()}
 
         {isProcessing && <ThinkingDots />}
         <div ref={endRef} />

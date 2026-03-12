@@ -59,6 +59,7 @@ export default function ChatFloat({ messages, currentFiles: currentFilesProp, cu
   const [text, setText] = useState('');
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
   const [conversionWarning, setConversionWarning] = useState<string | null>(null);
+  const [inputFocused, setInputFocused] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -159,7 +160,7 @@ export default function ChatFloat({ messages, currentFiles: currentFilesProp, cu
         style={{
           background: 'var(--white)',
           border: '1px solid var(--border)',
-          borderRadius: 12,
+          borderRadius: (!hasFiles && !text && !inputFocused) ? 22 : 12,
           boxShadow: floatUp ? 'var(--shadow-realistic)' : 'var(--shadow-sm)',
           transition: 'box-shadow 420ms ease, border-radius 280ms ease',
         }}
@@ -379,8 +380,8 @@ export default function ChatFloat({ messages, currentFiles: currentFilesProp, cu
           value={text}
           onChange={handleTextChange}
           onKeyDown={handleKeyDown}
-          onFocus={onFocus}
-          onBlur={onBlur}
+          onFocus={() => { setInputFocused(true); onFocus?.(); }}
+          onBlur={() => { setInputFocused(false); onBlur?.(); }}
           disabled={disabled}
           placeholder={placeholder}
           rows={1}

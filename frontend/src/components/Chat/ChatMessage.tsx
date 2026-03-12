@@ -1,4 +1,21 @@
 import { Paperclip } from 'lucide-react';
+
+function StreamingCursor() {
+  return (
+    <span
+      style={{
+        display: 'inline-block',
+        width: 2,
+        height: '0.85em',
+        background: 'var(--accent)',
+        marginLeft: 2,
+        verticalAlign: 'text-bottom',
+        borderRadius: 1,
+        animation: 'streaming-cursor-blink 0.9s step-end infinite',
+      }}
+    />
+  );
+}
 import type { ChatMessage as ChatMessageType } from '../../types';
 import FormatBadge from '../ui/FormatBadge';
 
@@ -28,6 +45,7 @@ export default function ChatMessage({ message, compact }: Props) {
           }}
         >
           {message.content}
+          {message.streaming && <StreamingCursor />}
           {message.attachmentName && (
             <span style={{ color: 'var(--text-muted)', fontSize: 10, marginLeft: 6 }}>
               · {message.attachmentName}
@@ -73,6 +91,7 @@ export default function ChatMessage({ message, compact }: Props) {
             }}
           >
             {message.content}
+            {message.streaming && <StreamingCursor />}
           </div>
 
           {message.attachmentName && (

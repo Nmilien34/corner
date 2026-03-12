@@ -9,7 +9,7 @@ import LeftPanel, {
 } from './components/Layout/LeftPanel';
 import RightPanel, { type RightPanelSettings } from './components/Layout/RightPanel';
 import EmptyState from './components/Canvas/EmptyState';
-import OrchestratorLoadingAnimation from './components/Canvas/OrchestratorLoadingAnimation';
+import ProcessingTimeline from './components/Canvas/ProcessingTimeline';
 import DocumentColumn from './components/Canvas/DocumentColumn';
 import ChatFloat from './components/Chat/ChatFloat';
 import ChatThreadColumn from './components/Chat/ChatThreadColumn';
@@ -821,17 +821,12 @@ export default function App() {
 
                 {mode === 'processing' && processing && (
                   <div className="flex flex-col items-center gap-3">
-                    {processing.toolNames && processing.toolNames.length > 0 ? (
-                      <OrchestratorLoadingAnimation
-                        toolNames={processing.toolNames}
-                        label={processing.label}
-                      />
-                    ) : (
-                      <>
-                        <div className="canvas-spinner" />
-                        <p style={{ color: 'var(--text-muted)', fontSize: '12px' }}>{processing.label}</p>
-                      </>
-                    )}
+                    <ProcessingTimeline
+                      label={processing.label}
+                      stepCurrent={processing.stepCurrent}
+                      stepTotal={processing.stepTotal}
+                      toolNames={processing.toolNames}
+                    />
                   </div>
                 )}
 

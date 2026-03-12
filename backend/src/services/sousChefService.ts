@@ -266,30 +266,68 @@ EXECUTION RULES:
   ];
 
   let maxIterations = Math.max(plan.steps.length * 3, 6);
+  // Keep system + user messages + last N tool-call/result pairs to bound token cost
+  const HISTORY_WINDOW = 6;
 
   while (maxIterations-- > 0) {
     const allStepsDone = stepIndex >= plan.steps.length;
 
-    const response = await client.chat.completions.create({
+    // Prune history: always keep system (0) + user/plan (1), then last HISTORY_WINDOW messages
+    const historyTail = messages.length > 2 + HISTORY_WINDOW
+      ? [messages[0], messages[1], ...messages.slice(-HISTORY_WINDOW)]
+      : messages;
+
+    // Stream the OpenAI response to emit reasoning tokens as thinking_chunk events
+    const stream = await client.chat.completions.create({
       model: env.OPENAI_MODEL,
-      messages,
+      messages: historyTail,
       tools: OPENAI_TOOLS,
       tool_choice: allStepsDone ? 'none' : 'auto',
+      stream: true,
     });
 
-    const choice = response.choices[0];
-    if (!choice) break;
+    let assistantContent = '';
+    const toolCallAcc: Record<number, { id: string; name: string; args: string }> = {};
+
+    for await (const chunk of stream) {
+      const delta = chunk.choices[0]?.delta;
+      if (!delta) continue;
+      if (delta.content) {
+        assistantContent += delta.content;
+        onEvent({ type: 'thinking_chunk', chunk: delta.content });
+      }
+      if (delta.tool_calls) {
+        for (const tc of delta.tool_calls) {
+          const idx = tc.index;
+          if (!toolCallAcc[idx]) {
+            toolCallAcc[idx] = { id: tc.id ?? '', name: tc.function?.name ?? '', args: '' };
+          } else {
+            if (tc.id) toolCallAcc[idx].id = tc.id;
+            if (tc.function?.name) toolCallAcc[idx].name = tc.function.name;
+          }
+          if (tc.function?.arguments) toolCallAcc[idx].args += tc.function.arguments;
+        }
+      }
+    }
+
+    const toolCalls = Object.entries(toolCallAcc)
+      .sort(([a], [b]) => Number(a) - Number(b))
+      .map(([, tc]) => ({
+        id: tc.id,
+        type: 'function' as const,
+        function: { name: tc.name, arguments: tc.args },
+      }));
 
     const assistantMsg: OpenAI.Chat.Completions.ChatCompletionAssistantMessageParam = {
       role: 'assistant',
-      content: choice.message.content ?? null,
-      tool_calls: choice.message.tool_calls,
+      content: assistantContent || null,
+      tool_calls: toolCalls.length > 0 ? toolCalls : undefined,
     };
     messages.push(assistantMsg);
 
-    if (!choice.message.tool_calls || choice.message.tool_calls.length === 0) break;
+    if (toolCalls.length === 0) break;
 
-    for (const toolCall of choice.message.tool_calls) {
+    for (const toolCall of toolCalls) {
       const tc = toolCall as { id: string; function: { name: string; arguments: string } };
       const toolName = tc.function.name;
       const params = JSON.parse(tc.function.arguments) as Record<string, unknown>;

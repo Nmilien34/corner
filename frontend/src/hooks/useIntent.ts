@@ -169,6 +169,8 @@ export function useIntent({ onProcessingChange, onResult, onMessages, onClarify,
 
   const plannedToolNamesRef = useRef<string[]>([]);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const thinkingMsgIdRef = useRef<string | null>(null);
+  const thinkingAccRef = useRef<string>('');
 
   const stop = useCallback(() => {
     abortControllerRef.current?.abort();
@@ -183,6 +185,10 @@ export function useIntent({ onProcessingChange, onResult, onMessages, onClarify,
         const formData = new FormData();
         formData.append('message', message);
         files.forEach((f) => formData.append('files', f));
+
+        // Reset thinking stream state for this execution
+        thinkingMsgIdRef.current = null;
+        thinkingAccRef.current = '';
 
         const response = await fetch('/api/orchestrate', { method: 'POST', body: formData, signal });
         if (!response.body) throw new Error('No response body from orchestrator');
@@ -213,6 +219,25 @@ export function useIntent({ onProcessingChange, onResult, onMessages, onClarify,
             }
 
             switch (event.type) {
+              case 'thinking_chunk': {
+                // Stream Sous Chef reasoning into a live chat bubble
+                if (!thinkingMsgIdRef.current) {
+                  const id = crypto.randomUUID();
+                  thinkingMsgIdRef.current = id;
+                  thinkingAccRef.current = '';
+                  onMessages((prev) => [
+                    ...prev,
+                    { id, role: 'corner' as const, content: '', timestamp: Date.now(), streaming: true },
+                  ]);
+                }
+                thinkingAccRef.current += event.chunk ?? '';
+                const msgId = thinkingMsgIdRef.current;
+                const accumulated = thinkingAccRef.current;
+                onMessages((prev) =>
+                  prev.map((m) => (m.id === msgId ? { ...m, content: accumulated, streaming: true } : m))
+                );
+                break;
+              }
               case 'planning':
                 onProcessingChange({ progress: 5, label: 'Planning...' });
                 break;
@@ -277,7 +302,16 @@ export function useIntent({ onProcessingChange, onResult, onMessages, onClarify,
                   description: event.error ?? 'unknown error',
                 });
                 break;
-              case 'done':
+              case 'done': {
+                // Stop streaming cursor on thinking bubble, then remove it
+                if (thinkingMsgIdRef.current) {
+                  const idToRemove = thinkingMsgIdRef.current;
+                  onMessages((prev) => prev.map((m) => m.id === idToRemove ? { ...m, streaming: false } : m));
+                  await new Promise((r) => setTimeout(r, 80));
+                  onMessages((prev) => prev.filter((m) => m.id !== idToRemove));
+                  thinkingMsgIdRef.current = null;
+                  thinkingAccRef.current = '';
+                }
                 onProcessingChange({
                   progress: 100,
                   label: 'Done',
@@ -290,6 +324,7 @@ export function useIntent({ onProcessingChange, onResult, onMessages, onClarify,
                   onResult(event.finalResult, (lastStep?.toolName ?? 'convert_image') as ToolName);
                 }
                 break;
+              }
               case 'error':
                 toast({
                   variant: 'destructive',

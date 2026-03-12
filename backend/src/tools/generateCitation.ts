@@ -9,6 +9,18 @@ import type { ServerToolResult } from '../types';
 const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
 const TMP_DIR = path.join(__dirname, '../../tmp/uploads');
 
+/** Split document into paragraphs up to maxChars, avoiding cuts mid-paragraph. */
+function chunkDocument(text: string, maxChars = 25_000): string {
+  if (text.length <= maxChars) return text;
+  const paragraphs = text.split(/\n\n+/);
+  let result = '';
+  for (const p of paragraphs) {
+    if ((result + p).length > maxChars) break;
+    result += p + '\n\n';
+  }
+  return result.trim() + '\n\n[Rest of document omitted.]';
+}
+
 const CITATION_SYSTEM = `You are a citation assistant. The user will provide text extracted from a document (e.g. a research paper, article, or book chapter). Your job is to:
 
 1. Identify the document's bibliographic metadata from the text: title, author(s), year, publication/source, journal or book title if applicable, volume/issue, page range, DOI or URL if present.
@@ -32,8 +44,8 @@ export async function generateCitation(
     throw new Error('Document has too little text to generate a citation. Try a different file or run OCR on a scanned PDF first.');
   }
 
-  // For long documents, first ~25k chars usually contain title, authors, abstract, metadata
-  const textSample = fullText.length > 28000 ? fullText.slice(0, 28000) + '\n\n[Rest of document omitted.]' : fullText;
+  // For citations, first ~25k chars (title, authors, abstract, metadata) are most relevant
+  const textSample = chunkDocument(fullText, 25_000);
 
   const response = await client.messages.create({
     model: 'claude-sonnet-4-20250514',

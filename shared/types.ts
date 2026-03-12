@@ -189,7 +189,8 @@ export type OrchestrateEventType =
   | 'step_complete'
   | 'step_error'
   | 'done'
-  | 'error';
+  | 'error'
+  | 'thinking_chunk';
 
 export interface OrchestrateEvent {
   type: OrchestrateEventType;
@@ -204,4 +205,6 @@ export interface OrchestrateEvent {
   question?: string;
   finalResult?: ToolResult | null;
   allSteps?: StepResult[];
+  /** For thinking_chunk events: the streamed text fragment */
+  chunk?: string;
 }
