@@ -14,7 +14,7 @@ import ReactMarkdown from 'react-markdown';
 import type { ChatMessage as ChatMessageType, ToolResult } from '../../types';
 import FormatBadge from '../ui/FormatBadge';
 import { getFileFormatInfo, getConversionWarning } from '../../lib/fileFormat';
-import FollowUpActions from './FollowUpActions';
+import FollowUpActions, { PRIMARY_ACTIONS } from './FollowUpActions';
 
 const STUDY_TOOLS = new Set(['summarize_document', 'generate_study_questions', 'extract_key_terms']);
 
@@ -652,36 +652,37 @@ export default function ChatThreadColumn({
             )}
           </div>
         )}
-        {(hasCurrentFiles || attachedFiles.length > 0) && (
-          <div className="flex flex-wrap items-center gap-2" style={{ marginBottom: 6 }}>
-            {[
-              { label: 'Summarize', msg: 'Summarize this document' },
-              { label: 'Study questions', msg: 'Generate study questions from this document' },
-              { label: 'Key terms', msg: 'Extract key terms and definitions' },
-              { label: 'Get citation', msg: 'Get citation for this document' },
-            ].map(({ label, msg }) => (
-              <button
-                key={label}
-                type="button"
-                onClick={() => {
-                  const files = attachedFiles.length > 0 ? attachedFiles : currentFiles;
-                  onSend(msg, files);
-                }}
-                disabled={disabled}
-                style={{
-                  padding: '6px 12px',
-                  borderRadius: 8,
-                  fontSize: 12,
-                  fontWeight: 500,
-                  border: '1px solid var(--border)',
-                  background: 'transparent',
-                  color: 'var(--text-primary)',
-                  cursor: disabled ? 'default' : 'pointer',
-                }}
-              >
-                {label}
-              </button>
-            ))}
+        {/* Quick actions: when user has files, or as follow-up suggestions when conversation has started */}
+        {(hasCurrentFiles || attachedFiles.length > 0 || messages.length > 0) && (
+          <div className="flex flex-col gap-1" style={{ marginBottom: 6 }}>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 500 }}>
+              {messages.length > 0 ? 'Try' : 'Quick actions'}
+            </span>
+            <div className="flex flex-wrap items-center gap-2">
+              {PRIMARY_ACTIONS.map(({ label, msg }) => (
+                <button
+                  key={label}
+                  type="button"
+                  onClick={() => {
+                    const files = attachedFiles.length > 0 ? attachedFiles : currentFiles;
+                    onSend(msg, files);
+                  }}
+                  disabled={disabled}
+                  style={{
+                    padding: '6px 12px',
+                    borderRadius: 8,
+                    fontSize: 12,
+                    fontWeight: 500,
+                    border: '1px solid var(--border)',
+                    background: 'transparent',
+                    color: 'var(--text-primary)',
+                    cursor: disabled ? 'default' : 'pointer',
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
         )}
         <div className="flex items-center gap-1" style={{ height: 44 }}>

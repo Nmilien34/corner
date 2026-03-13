@@ -1,7 +1,19 @@
-interface Action {
+export interface Action {
   label: string;
   msg: string;
 }
+
+/** Primary quick actions shown when user has a document (and for follow-up suggestions). */
+export const PRIMARY_ACTIONS: Action[] = [
+  { label: 'Explain', msg: 'Explain this document to me' },
+  { label: 'Summarize', msg: 'Summarize this document' },
+  { label: 'Study questions', msg: 'Generate study questions from this document' },
+  { label: 'Key terms', msg: 'Extract key terms and definitions' },
+  { label: 'Get citation', msg: 'Get citation for this document' },
+  { label: 'Convert to PDF', msg: 'Convert this to PDF' },
+  { label: 'Compress', msg: 'Compress this document' },
+  { label: 'Extract text', msg: 'Extract text from this document' },
+];
 
 const FOLLOW_UPS: Record<string, Action[]> = {
   compress_pdf: [
@@ -92,7 +104,7 @@ interface Props {
 }
 
 export default function FollowUpActions({ toolName, onSend, disabled }: Props) {
-  const actions = FOLLOW_UPS[toolName];
+  const actions = FOLLOW_UPS[toolName] ?? PRIMARY_ACTIONS;
   if (!actions || actions.length === 0) return null;
 
   return (

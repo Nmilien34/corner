@@ -2,6 +2,7 @@ import { useRef, useState, useEffect, type KeyboardEvent } from 'react';
 import { Paperclip, ArrowUp, X, Square } from 'lucide-react';
 import type { ChatMessage } from '../../types';
 import ChatMessageComp from './ChatMessage';
+import { PRIMARY_ACTIONS } from './FollowUpActions';
 import FormatBadge from '../ui/FormatBadge';
 import { getFileFormatInfo, getConversionWarning } from '../../lib/fileFormat';
 
@@ -306,37 +307,35 @@ export default function ChatFloat({ messages, currentFiles: currentFilesProp, cu
                 </div>
               </div>
             )}
-            {/* Study + citation quick actions */}
-            <div className="flex flex-wrap items-center gap-2 w-full" style={{ marginTop: 8 }}>
-              {[
-                { label: 'Summarize', msg: 'Summarize this document' },
-                { label: 'Study questions', msg: 'Generate study questions from this document' },
-                { label: 'Key terms', msg: 'Extract key terms and definitions' },
-                { label: 'Get citation', msg: 'Get citation for this document' },
-              ].map(({ label, msg }) => (
-                <button
-                  key={label}
-                  type="button"
-                  onClick={() => {
-                    const files = attachedFiles.length > 0 ? attachedFiles : currentFiles;
-                    onSend(msg, files);
-                  }}
-                  disabled={disabled}
-                  className="shrink-0"
-                  style={{
-                    padding: '6px 12px',
-                    borderRadius: 8,
-                    fontSize: 12,
-                    fontWeight: 500,
-                    border: '1px solid var(--border)',
-                    background: 'transparent',
-                    color: 'var(--text-primary)',
-                    cursor: disabled ? 'default' : 'pointer',
-                  }}
-                >
-                  {label}
-                </button>
-              ))}
+            {/* Quick actions: explain, summarize, convert, etc. */}
+            <div className="flex flex-col gap-1 w-full" style={{ marginTop: 8 }}>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 500 }}>Quick actions</span>
+              <div className="flex flex-wrap items-center gap-2">
+                {PRIMARY_ACTIONS.map(({ label, msg }) => (
+                  <button
+                    key={label}
+                    type="button"
+                    onClick={() => {
+                      const files = attachedFiles.length > 0 ? attachedFiles : currentFiles;
+                      onSend(msg, files);
+                    }}
+                    disabled={disabled}
+                    className="shrink-0"
+                    style={{
+                      padding: '6px 12px',
+                      borderRadius: 8,
+                      fontSize: 12,
+                      fontWeight: 500,
+                      border: '1px solid var(--border)',
+                      background: 'transparent',
+                      color: 'var(--text-primary)',
+                      cursor: disabled ? 'default' : 'pointer',
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         )}
