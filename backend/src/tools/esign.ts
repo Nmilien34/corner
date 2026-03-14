@@ -3,11 +3,12 @@ import Anthropic from '@anthropic-ai/sdk';
 import fs from 'fs';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
+import { env } from '../config/env';
 import { ServerToolResult, SignatureField, WalkthroughStep } from '../types';
 
 const TMP_DIR = path.join(__dirname, '../../tmp/uploads');
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
 
 /**
  * Use Claude vision to detect signature field positions on each PDF page.

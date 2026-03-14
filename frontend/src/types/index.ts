@@ -29,25 +29,50 @@ export type ToolName =
   | 'extract_text' | 'extract_images' | 'extract_tables'
   // Document intelligence (study + citation)
   | 'summarize_document' | 'generate_study_questions' | 'extract_key_terms' | 'generate_citation'
+  // Tier 2 analysis (prompt-only; no file output)
+  | 'summarize' | 'study_questions' | 'key_terms' | 'citation_generator' | 'contract_review' | 'action_items' | 'email_draft' | 'sensitive_data'
   // Audio
   | 'transcribe_audio' | 'extract_audio' | 'remove_silence' | 'convert_audio' | 'audio_to_pdf'
 
-export type ExecutionMode = 'silent' | 'interactive'
+export type ExecutionMode = 'silent' | 'interactive' | 'analysis'
 export type VersionStatus = 'processing' | 'complete' | 'error'
 export type AppMode = 'empty' | 'processing' | 'result' | 'esign' | 'clarifying'
 
+/** Tier 2 analysis-only types (prompt-based; no file tool). */
+export type AnalysisType =
+  | 'summarize'
+  | 'study_questions'
+  | 'key_terms'
+  | 'citation_generator'
+  | 'contract_review'
+  | 'action_items'
+  | 'email_draft'
+  | 'sensitive_data'
+
+export const ANALYSIS_TYPES: AnalysisType[] = [
+  'summarize',
+  'study_questions',
+  'key_terms',
+  'citation_generator',
+  'contract_review',
+  'action_items',
+  'email_draft',
+  'sensitive_data',
+]
+
 export interface ParsedIntent {
   intent: string
-  tool: ToolName
+  tool: ToolName | null
   mode: ExecutionMode
   confidence: number
   clarification: string | null
   params: {
-    input_type: string
-    output_type: string
-    options: Record<string, unknown>
+    input_type?: string
+    output_type?: string
+    options?: Record<string, unknown>
+    analysisType?: AnalysisType
   }
-  steps: Array<{ tool: ToolName; params: Record<string, unknown>; description: string }>
+  steps: Array<{ tool: string; params: Record<string, unknown>; description: string }>
   /** Resolved from the filename extension by the backend — display as a static badge, not from Claude. */
   fileExtension?: string
 }
@@ -76,6 +101,10 @@ export interface ChatMessage {
   toolName?: string
   /** When true, show a blinking cursor (thinking_chunk is still streaming) */
   streaming?: boolean
+  /** Tier 2 analysis: prompt-based result in chat (no file). Show content + optional Export. */
+  type?: 'analysis'
+  analysisType?: AnalysisType
+  exportable?: boolean
 }
 
 export interface SavedSignature {

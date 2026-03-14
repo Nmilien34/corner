@@ -66,10 +66,32 @@ export type ToolName =
   | 'convert_audio'
   | 'audio_to_pdf';
 
+/** Tier 2 analysis-only intents (prompt-based; no file tool). */
+export type AnalysisType =
+  | 'summarize'
+  | 'study_questions'
+  | 'key_terms'
+  | 'citation_generator'
+  | 'contract_review'
+  | 'action_items'
+  | 'email_draft'
+  | 'sensitive_data';
+
+export const ANALYSIS_TYPES: AnalysisType[] = [
+  'summarize',
+  'study_questions',
+  'key_terms',
+  'citation_generator',
+  'contract_review',
+  'action_items',
+  'email_draft',
+  'sensitive_data',
+];
+
 export interface ParsedIntent {
   tool: ToolName | null;
   params: Record<string, unknown>;
-  mode: 'silent' | 'interactive';
+  mode: 'silent' | 'interactive' | 'analysis';
   confidence: number;
   clarification: string | null;
   intent: string;
@@ -91,8 +113,8 @@ export interface ToolResult {
   previewUrl?: string;
   /** For study tools: full text to show inline in chat */
   textContent?: string;
-  /** For study tools: which tool produced this result */
-  studyTool?: StudyToolName;
+  /** For study tools / Tier 2 analysis: which tool or analysis type produced this result */
+  studyTool?: StudyToolName | AnalysisType;
   transcriptionResult?: {
     transcript: string;
     duration: number;

@@ -1,7 +1,9 @@
 import { useCallback, useRef } from 'react';
 import axios from 'axios';
-import type { ParsedIntent, ToolResult, ProcessingState, ChatMessage, ToolName } from '../types';
+import type { ParsedIntent, ToolResult, ProcessingState, ChatMessage, ToolName, AnalysisType } from '../types';
+import { ANALYSIS_TYPES } from '../types';
 import { getFileFormatInfo } from '../lib/fileFormat';
+import { api } from '../lib/api';
 import { toast } from './use-toast';
 import type { OrchestrateEvent } from '@corner/shared';
 import type { RightPanelSettings } from '../components/Layout/RightPanel';
@@ -87,10 +89,44 @@ export function useIntent({ onProcessingChange, onResult, onMessages, onClarify,
           return;
         }
 
-        // 4. Confirm action in chat
+        // 4. Analysis mode — call /analyze, add result to chat as AI message (no file tool)
+        if (parsed.mode === 'analysis') {
+          const analysisType = parsed.params?.analysisType;
+          if (!analysisType || !ANALYSIS_TYPES.includes(analysisType)) {
+            addMessage(onMessages, 'corner', parsed.clarification ?? 'Analysis type not recognized. Please try rephrasing.');
+            onProcessingChange(null);
+            return;
+          }
+          if (!file) {
+            addMessage(onMessages, 'corner', 'Please upload a document to analyze.');
+            onProcessingChange(null);
+            return;
+          }
+          addMessage(onMessages, 'corner', parsed.intent);
+          onProcessingChange({ progress: 50, label: 'Analyzing...' });
+          const data = await api.analyzeDocument(file, analysisType);
+          onProcessingChange({ progress: 100, label: 'Done' });
+          await new Promise((r) => setTimeout(r, 300));
+          onProcessingChange(null);
+          onMessages((prev) => [
+            ...prev,
+            {
+              id: crypto.randomUUID(),
+              role: 'corner',
+              type: 'analysis' as const,
+              content: data.result,
+              analysisType: data.analysisType as AnalysisType,
+              exportable: data.exportable,
+              timestamp: Date.now(),
+            },
+          ]);
+          return;
+        }
+
+        // 5. Confirm action in chat
         addMessage(onMessages, 'corner', parsed.intent);
 
-        // 5. Build step list (single-step or multi-step)
+        // 6. Build step list (single-step or multi-step)
         const steps =
           parsed.steps?.length > 0
             ? parsed.steps
@@ -107,6 +143,11 @@ export function useIntent({ onProcessingChange, onResult, onMessages, onClarify,
 
         for (let i = 0; i < steps.length; i++) {
           const step = steps[i];
+          if (!step.tool) {
+            toast({ variant: 'destructive', title: 'Error', description: 'No tool selected for this step.' });
+            onProcessingChange(null);
+            return;
+          }
           onProcessingChange({
             progress: Math.round(((i + 0.5) / steps.length) * 100),
             label: step.description,
@@ -130,7 +171,7 @@ export function useIntent({ onProcessingChange, onResult, onMessages, onClarify,
           }
         }
 
-        // 6. Done
+        // 7. Done
         const lastToolName = steps[steps.length - 1].tool as ToolName;
         onProcessingChange({ progress: 100, label: 'Done' });
         await new Promise((r) => setTimeout(r, 300));

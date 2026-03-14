@@ -246,7 +246,7 @@ function ThinkingDots() {
   );
 }
 
-interface Props {
+export interface ChatThreadColumnProps {
   messages: ChatMessageType[];
   isProcessing: boolean;
   onSend: (text: string, files: File[]) => void;
@@ -260,6 +260,8 @@ interface Props {
   onClearCurrentFiles?: () => void;
   /** When provided, renders a collapse button in the header */
   onCollapse?: () => void;
+  /** When provided and a document is loaded, quick action pills are shown; intent is sent directly to /analyze */
+  onQuickAction?: (intent: string) => void;
 }
 
 export default function ChatThreadColumn({
@@ -273,7 +275,8 @@ export default function ChatThreadColumn({
   currentFiles,
   onClearCurrentFiles,
   onCollapse,
-}: Props) {
+  onQuickAction,
+}: ChatThreadColumnProps) {
   const [text, setText] = useState('');
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
   const [exportModalMessage, setExportModalMessage] = useState<ChatMessageType | null>(null);
@@ -333,6 +336,52 @@ export default function ChatThreadColumn({
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
+    }
+  };
+
+  const handleExportAnalysis = async (
+    content: string,
+    format: 'PDF' | 'DOCX' | 'TXT',
+    analysisType?: string
+  ) => {
+    const baseName = analysisType ? `analysis-${analysisType}` : 'export';
+    const text = (content ?? '').trim();
+    if (!text) return;
+
+    if (format === 'TXT') {
+      const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${baseName}.txt`;
+      a.click();
+      URL.revokeObjectURL(url);
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/export-text', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text,
+          format: format.toLowerCase(),
+          fileName: baseName,
+        }),
+      });
+      if (!res.ok) throw new Error('Export failed');
+      const blob = await res.blob();
+      const disposition = res.headers.get('Content-Disposition');
+      const match = disposition?.match(/filename="?([^";\n]+)"?/);
+      const name = match?.[1] ?? `${baseName}.${format === 'PDF' ? 'pdf' : 'docx'}`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = name;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Export failed', err);
     }
   };
 
@@ -431,7 +480,7 @@ export default function ChatThreadColumn({
 
         {(() => {
           const lastResultMsg = [...messages].reverse().find(
-            (m) => m.role === 'corner' && (m.result || m.toolName)
+            (m) => m.role === 'corner' && (m.result || m.toolName || m.type === 'analysis')
           );
           const lastResultMsgId = lastResultMsg?.id;
 
@@ -489,9 +538,14 @@ export default function ChatThreadColumn({
           }
 
           // corner (AI)
-          const isStudyTool = msg.result && (STUDY_TOOLS.has(msg.toolName ?? '') || STUDY_TOOLS.has(msg.result.studyTool ?? ''));
-          const studyBodyContent = msg.result?.textContent ?? msg.content ?? fetchedStudyContent[msg.id];
+          const isAnalysisMessage = msg.type === 'analysis' && (msg.content ?? '').trim().length > 0;
+          const isStudyTool =
+            (msg.result && (STUDY_TOOLS.has(msg.toolName ?? '') || STUDY_TOOLS.has(msg.result.studyTool ?? ''))) ||
+            isAnalysisMessage;
+          const studyBodyContent =
+            msg.type === 'analysis' ? msg.content : (msg.result?.textContent ?? msg.content ?? fetchedStudyContent[msg.id]);
           const hasStudyContent = (studyBodyContent ?? '').trim().length > 0;
+          const showExport = (isStudyTool && hasStudyContent) || (isAnalysisMessage && msg.exportable);
           return (
             <div key={msg.id} className="flex justify-start">
               <div
@@ -520,13 +574,55 @@ export default function ChatThreadColumn({
                     {isStudyTool ? (hasStudyContent ? studyBodyContent : 'Loading…') : msg.content}
                   </ReactMarkdown>
                 </div>
-                {isStudyTool ? (
+                {msg.type === 'analysis' && msg.exportable ? (
+                  <div
+                    style={{
+                      marginTop: 12,
+                      paddingTop: 12,
+                      borderTop: '1px solid var(--border)',
+                      display: 'flex',
+                      gap: 8,
+                      flexWrap: 'wrap',
+                    }}
+                  >
+                    <span style={{ fontSize: '11px', color: 'var(--text-muted)', alignSelf: 'center' }}>
+                      Export as:
+                    </span>
+                    {(['PDF', 'DOCX', 'TXT'] as const).map((format) => (
+                      <button
+                        key={format}
+                        onClick={() => handleExportAnalysis(msg.content, format, msg.analysisType)}
+                        style={{
+                          padding: '4px 12px',
+                          fontSize: '11px',
+                          border: '1px solid var(--border)',
+                          borderRadius: 6,
+                          background: 'var(--white)',
+                          color: 'var(--text-primary)',
+                          cursor: 'pointer',
+                          fontFamily: 'Geist, sans-serif',
+                          transition: '150ms ease',
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = 'var(--hover)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = 'var(--white)';
+                        }}
+                      >
+                        {format}
+                      </button>
+                    ))}
+                  </div>
+                ) : showExport ? (
                   <div style={{ marginTop: 8 }}>
                     <StudyExportButton
                       message={msg}
                       onOpenExport={() => {
                         setExportModalMessage(msg);
-                        setExportModalResolvedText(msg.result?.textContent ?? msg.content ?? fetchedStudyContent[msg.id]);
+                        setExportModalResolvedText(
+                          msg.type === 'analysis' ? msg.content : (msg.result?.textContent ?? msg.content ?? fetchedStudyContent[msg.id])
+                        );
                       }}
                     />
                   </div>
@@ -549,6 +645,59 @@ export default function ChatThreadColumn({
         {isProcessing && <ThinkingDots />}
         <div ref={endRef} />
       </div>
+
+      {/* Quick action pills — above input, when a document is loaded */}
+      {firstFile && onQuickAction && (
+        <div
+          style={{
+            display: 'flex',
+            gap: 6,
+            flexWrap: 'wrap',
+            padding: '8px 16px 0',
+          }}
+        >
+          {[
+            { label: 'Summarize', intent: 'summarize' },
+            { label: 'Study questions', intent: 'study_questions' },
+            { label: 'Key terms', intent: 'key_terms' },
+            { label: 'Get citation', intent: 'citation_generator' },
+            { label: 'Review contract', intent: 'contract_review' },
+            { label: 'Action items', intent: 'action_items' },
+            { label: 'Draft email', intent: 'email_draft' },
+            { label: 'Scan for sensitive data', intent: 'sensitive_data' },
+          ].map((action) => (
+            <button
+              key={action.intent}
+              type="button"
+              onClick={() => onQuickAction(action.intent)}
+              style={{
+                padding: '4px 12px',
+                fontSize: '11px',
+                border: '1px solid var(--border)',
+                borderRadius: 20,
+                background: 'var(--white)',
+                color: 'var(--text-muted)',
+                cursor: 'pointer',
+                fontFamily: 'Geist, sans-serif',
+                transition: '150ms ease',
+                whiteSpace: 'nowrap',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'var(--text-primary)';
+                e.currentTarget.style.color = 'var(--white)';
+                e.currentTarget.style.borderColor = 'var(--text-primary)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'var(--white)';
+                e.currentTarget.style.color = 'var(--text-muted)';
+                e.currentTarget.style.borderColor = 'var(--border)';
+              }}
+            >
+              {action.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Input — pinned bottom; focus = accent border */}
       <div

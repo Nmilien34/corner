@@ -1,14 +1,18 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { env } from '../config/env';
-import type { FileMetadata } from '@corner/shared';
+import type { FileMetadata, AnalysisType } from '@corner/shared';
+import { ANALYSIS_TYPES } from '@corner/shared';
 
 const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
 
 const QUICK_CLASSIFY_SYSTEM = `You are a fast request classifier for Corner, a document and file processing tool.
 
-Given a user request (and optional file info), determine if it maps clearly to exactly ONE tool with determinable parameters, or if it's complex/multi-step/ambiguous and needs deeper planning.
+Given a user request (and optional file info), determine if it maps to:
+1) Exactly ONE file-operation tool (use type "direct" and toolName from the TOOL LIST), or
+2) An analysis-only intent (use type "analysis" and analysisType from the ANALYSIS list — no file output, returns text in chat), or
+3) Complex/multi-step/ambiguous (use type "orchestrate").
 
-TOOL LIST (use exact snake_case names):
+TOOL LIST (use exact snake_case names for type "direct"):
 pdf_to_word, pdf_to_excel, pdf_to_pptx, pdf_to_jpg, pdf_to_png
 word_to_pdf, excel_to_pdf, pptx_to_pdf, jpg_to_pdf, png_to_pdf
 merge_pdf, split_pdf, compress_pdf, compress_image
@@ -21,30 +25,30 @@ add_page_numbers_word, track_changes_word, csv_to_excel, excel_to_csv
 summarize_document, generate_study_questions, extract_key_terms, generate_citation
 transcribe_audio, extract_audio, remove_silence, convert_audio, audio_to_pdf
 
+ANALYSIS-ONLY (use type "analysis" and analysisType — one of): summarize, study_questions, key_terms, citation_generator, contract_review, action_items, email_draft, sensitive_data.
+
 Return ONLY valid JSON. No markdown, no explanation.
 
-If the request clearly maps to exactly ONE tool with all needed params determinable:
-{"type":"direct","toolName":"<exact_name>","params":{}}
-
-Otherwise (multi-step, ambiguous, no clear single tool, needs clarification):
-{"type":"orchestrate"}
+If exactly ONE tool: {"type":"direct","toolName":"<exact_name>","params":{}}
+If analysis-only: {"type":"analysis","analysisType":"<summarize|study_questions|key_terms|citation_generator|contract_review|action_items|email_draft|sensitive_data>"}
+Otherwise: {"type":"orchestrate"}
 
 Examples:
 - "compress this pdf" → {"type":"direct","toolName":"compress_pdf","params":{}}
-- "convert to word" → {"type":"direct","toolName":"pdf_to_word","params":{}}
-- "summarize this" → {"type":"direct","toolName":"summarize_document","params":{"mode":"summarize"}}
-- "generate study questions" → {"type":"direct","toolName":"generate_study_questions","params":{"mode":"study_questions"}}
-- "extract key terms" → {"type":"direct","toolName":"extract_key_terms","params":{"mode":"key_terms"}}
+- "summarize this" → {"type":"analysis","analysisType":"summarize"}
+- "generate study questions" → {"type":"analysis","analysisType":"study_questions"}
+- "extract key terms" → {"type":"analysis","analysisType":"key_terms"}
+- "cite this" / "give me a citation" → {"type":"analysis","analysisType":"citation_generator"}
+- "review this contract" → {"type":"analysis","analysisType":"contract_review"}
+- "what are the action items" → {"type":"analysis","analysisType":"action_items"}
+- "draft an email from this" → {"type":"analysis","analysisType":"email_draft"}
+- "scan for sensitive data" → {"type":"analysis","analysisType":"sensitive_data"}
 - "transcribe this audio" → {"type":"direct","toolName":"transcribe_audio","params":{}}
-- "remove the background" → {"type":"direct","toolName":"remove_background","params":{}}
-- "compress then convert to word" → {"type":"orchestrate"}
-- "rotate pages 1-3 clockwise" → {"type":"direct","toolName":"rotate_pdf","params":{"direction":"clockwise","applyTo":"range","pageRange":"1-3"}}
-- "add watermark CONFIDENTIAL" → {"type":"direct","toolName":"add_watermark_pdf","params":{"text":"CONFIDENTIAL","opacity":50,"rotation":45,"fontSize":48,"color":"#FF0000","tile":true}}
-- "what can you do" → {"type":"orchestrate"}
-- "explain this document" → {"type":"direct","toolName":"summarize_document","params":{"mode":"summarize"}}`;
+- "compress then convert to word" → {"type":"orchestrate"}`;
 
 export type RequestClass =
   | { type: 'direct'; toolName: string; params: Record<string, unknown> }
+  | { type: 'analysis'; analysisType: AnalysisType }
   | { type: 'orchestrate' };
 
 export async function quickClassify(
@@ -71,6 +75,9 @@ export async function quickClassify(
     const result = JSON.parse(text.slice(start, end + 1)) as RequestClass;
     if (result.type === 'direct' && typeof result.toolName === 'string') {
       return { type: 'direct', toolName: result.toolName, params: result.params ?? {} };
+    }
+    if (result.type === 'analysis' && typeof result.analysisType === 'string' && ANALYSIS_TYPES.includes(result.analysisType as AnalysisType)) {
+      return { type: 'analysis', analysisType: result.analysisType as AnalysisType };
     }
     return { type: 'orchestrate' };
   } catch {

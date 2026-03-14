@@ -100,7 +100,6 @@ export default function OnboardingModal({ onComplete, onRegister, onLogin }: Pro
     e.preventDefault();
     setAuthError(null);
 
-    // Client-side validation
     if (authMode === 'register') {
       if (!displayName.trim()) {
         setAuthError('Please enter your name.');
@@ -155,494 +154,520 @@ export default function OnboardingModal({ onComplete, onRegister, onLogin }: Pro
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ background: 'rgba(26, 23, 20, 0.45)', backdropFilter: 'blur(3px)' }}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 1000,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'rgba(26, 23, 20, 0.45)',
+        backdropFilter: 'blur(3px)',
+      }}
       onClick={handleClose}
       role="dialog"
       aria-modal="true"
       aria-label="Onboarding"
     >
       <div
-        className="relative flex flex-col rounded-xl"
         style={{
+          position: 'relative',
+          display: 'flex',
+          flexDirection: 'column',
+          width: '480px',
+          maxHeight: '90vh',
+          borderRadius: 16,
           background: 'var(--canvas)',
           border: '1px solid var(--border)',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
-          width: 480,
+          boxShadow: '0 24px 80px rgba(0,0,0,0.15)',
+          overflow: 'auto',
           padding: '36px',
-          maxHeight: '90vh',
-          overflowY: 'auto',
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Close (X) button */}
-        <button
-          type="button"
-          onClick={handleClose}
-          title="Close"
-          style={{
-            position: 'absolute',
-            top: 16,
-            right: 16,
-            width: 28,
-            height: 28,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: 0,
-            border: 'none',
-            borderRadius: 6,
-            background: 'transparent',
-            color: 'var(--text-muted)',
-            cursor: 'pointer',
-            transition: 'background 150ms ease, color 150ms ease',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = 'var(--hover)';
-            e.currentTarget.style.color = 'var(--text-primary)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = 'transparent';
-            e.currentTarget.style.color = 'var(--text-muted)';
-          }}
-        >
-          <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M18 6L6 18M6 6l12 12" />
-          </svg>
-        </button>
-
+        {/* ── Auth / welcome step ─────────────────────────────────────────── */}
         {step === 'welcome' && (
-          <div className="flex flex-col w-full" style={{ maxWidth: 400, margin: '0 auto' }}>
-            {/* Logo */}
-            <div className="flex justify-center mb-6">
-              <img
-                src="/CornerLogo.svg"
-                alt="Corner"
-                style={{ height: 32, width: 'auto' }}
-                onError={(e) => {
-                  const el = e.currentTarget;
-                  el.style.display = 'none';
-                  const fallback = el.nextElementSibling as HTMLElement;
-                  if (fallback) fallback.style.display = 'flex';
-                }}
-              />
-              <div
-                style={{
-                  display: 'none',
-                  width: 40,
-                  height: 40,
-                  border: '1.5px solid var(--accent)',
-                  borderRadius: 10,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <span style={{ fontSize: 18, fontWeight: 600, color: 'var(--accent)', fontFamily: 'Geist, sans-serif' }}>C</span>
-              </div>
-            </div>
-
-            {/* Headline */}
-            <h1
-              style={{
-                fontSize: 18,
-                fontWeight: 600,
-                color: 'var(--text-primary)',
-                fontFamily: 'Geist, sans-serif',
-                textAlign: 'center',
-                marginBottom: 6,
-              }}
-            >
-              {authMode === 'register' ? 'Welcome to the Corner of the internet' : 'Welcome back'}
-            </h1>
-            <p
-              style={{
-                fontSize: 13,
-                color: 'var(--text-muted)',
-                textAlign: 'center',
-                marginBottom: 24,
-                lineHeight: 1.45,
-              }}
-            >
-              {authMode === 'register'
-                ? 'Your one-stop shop for document work — conversion, compression, signature, and more. Sign up to get started!'
-                : 'Sign in to pick up where you left off.'}
-            </p>
-
-            {/* Google button */}
+          <>
+            {/* Close (X) button */}
             <button
               type="button"
-              onClick={handleGoogleSignIn}
-              disabled={authLoading}
-              className="w-full flex items-center justify-center gap-3 rounded-lg transition-colors duration-150"
+              onClick={handleClose}
+              title="Close"
               style={{
-                height: 44,
-                padding: '0 16px',
-                background: 'var(--white)',
-                border: '1px solid var(--border)',
-                color: 'var(--text-primary)',
-                fontSize: 14,
-                fontWeight: 500,
-                fontFamily: 'Geist, sans-serif',
-                cursor: authLoading ? 'wait' : 'pointer',
+                position: 'absolute',
+                top: 16,
+                right: 16,
+                width: 28,
+                height: 28,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: 0,
+                border: 'none',
+                borderRadius: 6,
+                background: 'transparent',
+                color: 'var(--text-muted)',
+                cursor: 'pointer',
+                transition: 'background 150ms ease, color 150ms ease',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'var(--hover)';
+                e.currentTarget.style.color = 'var(--text-primary)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'transparent';
+                e.currentTarget.style.color = 'var(--text-muted)';
               }}
             >
-              <IconGoogle size={20} />
-              Continue with Google
+              <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18 6L6 18M6 6l12 12" />
+              </svg>
             </button>
 
-            {/* Divider */}
-            <div className="relative flex items-center my-5">
-              <span style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-              <span
-                style={{
-                  padding: '0 12px',
-                  fontSize: 11,
-                  fontWeight: 500,
-                  color: 'var(--text-muted)',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.04em',
-                  fontFamily: 'Geist, sans-serif',
-                }}
-              >
-                or
-              </span>
-              <span style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-            </div>
-
-            {/* Auth form */}
-            <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-              {authMode === 'register' && (
-                <input
-                  type="text"
-                  placeholder="Your name"
-                  value={displayName}
-                  onChange={(e) => setDisplayName(e.target.value)}
-                  disabled={authLoading}
-                  style={inputStyle}
-                  autoComplete="name"
+            <div className="flex flex-col w-full" style={{ maxWidth: 400, margin: '0 auto' }}>
+              {/* Logo */}
+              <div className="flex justify-center mb-6">
+                <img
+                  src="/CornerLogo.svg"
+                  alt="Corner"
+                  style={{ height: 32, width: 'auto' }}
+                  onError={(e) => {
+                    const el = e.currentTarget;
+                    el.style.display = 'none';
+                    const fallback = el.nextElementSibling as HTMLElement;
+                    if (fallback) fallback.style.display = 'flex';
+                  }}
                 />
-              )}
-
-              <input
-                type="email"
-                placeholder="you@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                disabled={authLoading}
-                style={inputStyle}
-                autoComplete="email"
-              />
-
-              <input
-                type="password"
-                placeholder="Password (min 8 characters)"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                disabled={authLoading}
-                style={inputStyle}
-                autoComplete={authMode === 'register' ? 'new-password' : 'current-password'}
-              />
-
-              {authMode === 'register' && (
-                <input
-                  type="password"
-                  placeholder="Confirm password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  disabled={authLoading}
-                  style={inputStyle}
-                  autoComplete="new-password"
-                />
-              )}
-
-              {/* Error message */}
-              {authError && (
-                <p
+                <div
                   style={{
-                    fontSize: 13,
-                    color: '#c0392b',
-                    fontFamily: 'Geist, sans-serif',
-                    margin: '2px 0 0',
+                    display: 'none',
+                    width: 40,
+                    height: 40,
+                    border: '1.5px solid var(--accent)',
+                    borderRadius: 10,
+                    alignItems: 'center',
+                    justifyContent: 'center',
                   }}
                 >
-                  {authError === 'USER_NOT_FOUND' ? (
-                    <>
-                      No account found with this email.{' '}
-                      <button
-                        type="button"
-                        onClick={() => switchMode('register')}
-                        style={{
-                          background: 'none',
-                          border: 'none',
-                          color: 'var(--accent)',
-                          fontSize: 13,
-                          fontFamily: 'Geist, sans-serif',
-                          cursor: 'pointer',
-                          textDecoration: 'underline',
-                          padding: 0,
-                        }}
-                      >
-                        Sign up instead
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      {authError}
-                      {authError.includes('already registered') && authMode === 'register' && (
-                        <>
-                          {' '}
-                          <button
-                            type="button"
-                            onClick={() => switchMode('login')}
-                            style={{
-                              background: 'none',
-                              border: 'none',
-                              color: 'var(--accent)',
-                              fontSize: 13,
-                              fontFamily: 'Geist, sans-serif',
-                              cursor: 'pointer',
-                              textDecoration: 'underline',
-                              padding: 0,
-                            }}
-                          >
-                            Sign in instead
-                          </button>
-                        </>
-                      )}
-                    </>
-                  )}
-                </p>
-              )}
+                  <span style={{ fontSize: 18, fontWeight: 600, color: 'var(--accent)', fontFamily: 'Geist, sans-serif' }}>C</span>
+                </div>
+              </div>
 
+              {/* Headline */}
+              <h1
+                style={{
+                  fontSize: 18,
+                  fontWeight: 600,
+                  color: 'var(--text-primary)',
+                  fontFamily: 'Geist, sans-serif',
+                  textAlign: 'center',
+                  marginBottom: 6,
+                }}
+              >
+                {authMode === 'register' ? 'Welcome to the Corner of the internet' : 'Welcome back'}
+              </h1>
+              <p
+                style={{
+                  fontSize: 13,
+                  color: 'var(--text-muted)',
+                  textAlign: 'center',
+                  marginBottom: 24,
+                  lineHeight: 1.45,
+                }}
+              >
+                {authMode === 'register'
+                  ? 'Your one-stop shop for document work — conversion, compression, signature, and more. Sign up to get started!'
+                  : 'Sign in to pick up where you left off.'}
+              </p>
+
+              {/* Google button */}
               <button
-                type="submit"
+                type="button"
+                onClick={handleGoogleSignIn}
                 disabled={authLoading}
-                className="w-full rounded-lg transition-colors duration-150"
+                className="w-full flex items-center justify-center gap-3 rounded-lg transition-colors duration-150"
                 style={{
                   height: 44,
-                  background: 'var(--accent)',
-                  color: 'var(--white)',
-                  border: 'none',
+                  padding: '0 16px',
+                  background: 'var(--white)',
+                  border: '1px solid var(--border)',
+                  color: 'var(--text-primary)',
                   fontSize: 14,
                   fontWeight: 500,
                   fontFamily: 'Geist, sans-serif',
                   cursor: authLoading ? 'wait' : 'pointer',
-                  marginTop: 4,
                 }}
               >
-                {authLoading
-                  ? authMode === 'register'
-                    ? 'Creating account…'
-                    : 'Signing in…'
-                  : authMode === 'register'
-                  ? 'Create account'
-                  : 'Sign in'}
+                <IconGoogle size={20} />
+                Continue with Google
               </button>
-            </form>
 
-            {/* Mode toggle */}
-            <p
+              {/* Divider */}
+              <div className="relative flex items-center my-5">
+                <span style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+                <span
+                  style={{
+                    padding: '0 12px',
+                    fontSize: 11,
+                    fontWeight: 500,
+                    color: 'var(--text-muted)',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.04em',
+                    fontFamily: 'Geist, sans-serif',
+                  }}
+                >
+                  or
+                </span>
+                <span style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+              </div>
+
+              {/* Auth form */}
+              <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+                {authMode === 'register' && (
+                  <input
+                    type="text"
+                    placeholder="Your name"
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                    disabled={authLoading}
+                    style={inputStyle}
+                    autoComplete="name"
+                  />
+                )}
+
+                <input
+                  type="email"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  disabled={authLoading}
+                  style={inputStyle}
+                  autoComplete="email"
+                />
+
+                <input
+                  type="password"
+                  placeholder="Password (min 8 characters)"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  disabled={authLoading}
+                  style={inputStyle}
+                  autoComplete={authMode === 'register' ? 'new-password' : 'current-password'}
+                />
+
+                {authMode === 'register' && (
+                  <input
+                    type="password"
+                    placeholder="Confirm password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    disabled={authLoading}
+                    style={inputStyle}
+                    autoComplete="new-password"
+                  />
+                )}
+
+                {/* Error message */}
+                {authError && (
+                  <p style={{ fontSize: 13, color: '#c0392b', fontFamily: 'Geist, sans-serif', margin: '2px 0 0' }}>
+                    {authError === 'USER_NOT_FOUND' ? (
+                      <>
+                        No account found with this email.{' '}
+                        <button
+                          type="button"
+                          onClick={() => switchMode('register')}
+                          style={{ background: 'none', border: 'none', color: 'var(--accent)', fontSize: 13, fontFamily: 'Geist, sans-serif', cursor: 'pointer', textDecoration: 'underline', padding: 0 }}
+                        >
+                          Sign up instead
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        {authError}
+                        {authError.includes('already registered') && authMode === 'register' && (
+                          <>
+                            {' '}
+                            <button
+                              type="button"
+                              onClick={() => switchMode('login')}
+                              style={{ background: 'none', border: 'none', color: 'var(--accent)', fontSize: 13, fontFamily: 'Geist, sans-serif', cursor: 'pointer', textDecoration: 'underline', padding: 0 }}
+                            >
+                              Sign in instead
+                            </button>
+                          </>
+                        )}
+                      </>
+                    )}
+                  </p>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={authLoading}
+                  className="w-full rounded-lg transition-colors duration-150"
+                  style={{
+                    height: 44,
+                    background: 'var(--accent)',
+                    color: 'var(--white)',
+                    border: 'none',
+                    fontSize: 14,
+                    fontWeight: 500,
+                    fontFamily: 'Geist, sans-serif',
+                    cursor: authLoading ? 'wait' : 'pointer',
+                    marginTop: 4,
+                  }}
+                >
+                  {authLoading
+                    ? authMode === 'register' ? 'Creating account…' : 'Signing in…'
+                    : authMode === 'register' ? 'Create account' : 'Sign in'}
+                </button>
+              </form>
+
+              {/* Mode toggle */}
+              <p style={{ marginTop: 16, fontSize: 13, color: 'var(--text-muted)', textAlign: 'center', fontFamily: 'Geist, sans-serif' }}>
+                {authMode === 'register' ? (
+                  <>
+                    Already have an account?{' '}
+                    <button
+                      type="button"
+                      onClick={() => switchMode('login')}
+                      disabled={authLoading}
+                      style={{ background: 'none', border: 'none', color: 'var(--accent)', fontSize: 13, fontFamily: 'Geist, sans-serif', cursor: authLoading ? 'wait' : 'pointer', textDecoration: 'underline', padding: 0 }}
+                    >
+                      Sign in
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    Don't have an account?{' '}
+                    <button
+                      type="button"
+                      onClick={() => switchMode('register')}
+                      disabled={authLoading}
+                      style={{ background: 'none', border: 'none', color: 'var(--accent)', fontSize: 13, fontFamily: 'Geist, sans-serif', cursor: authLoading ? 'wait' : 'pointer', textDecoration: 'underline', padding: 0 }}
+                    >
+                      Create one
+                    </button>
+                  </>
+                )}
+              </p>
+
+              {/* Continue without account */}
+              <button
+                type="button"
+                onClick={handleContinueToSignature}
+                disabled={authLoading}
+                style={{
+                  marginTop: 12,
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--text-muted)',
+                  fontSize: 13,
+                  fontFamily: 'Geist, sans-serif',
+                  cursor: authLoading ? 'wait' : 'pointer',
+                  textDecoration: 'underline',
+                  alignSelf: 'center',
+                }}
+              >
+                Continue without account
+              </button>
+            </div>
+          </>
+        )}
+
+        {/* ── Signature step ──────────────────────────────────────────────── */}
+        {step === 'signature' && (
+          <>
+            {/* Close (X) button */}
+            <button
+              type="button"
+              onClick={handleClose}
+              title="Close"
               style={{
-                marginTop: 16,
-                fontSize: 13,
+                position: 'absolute',
+                top: 16,
+                right: 16,
+                width: 28,
+                height: 28,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: 0,
+                border: 'none',
+                borderRadius: 6,
+                background: 'transparent',
                 color: 'var(--text-muted)',
-                textAlign: 'center',
-                fontFamily: 'Geist, sans-serif',
+                cursor: 'pointer',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'var(--hover)';
+                e.currentTarget.style.color = 'var(--text-primary)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'transparent';
+                e.currentTarget.style.color = 'var(--text-muted)';
               }}
             >
-              {authMode === 'register' ? (
+              <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18 6L6 18M6 6l12 12" />
+              </svg>
+            </button>
+
+            <div className="flex flex-col gap-5">
+              <div>
+                <h2 style={{ fontSize: '16px', fontWeight: 500, color: 'var(--text-primary)' }}>
+                  Save your signature
+                </h2>
+                <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: 4 }}>
+                  We'll use this automatically whenever you need to sign something. You can draw, type, or upload an image of your signature.
+                </p>
+              </div>
+
+              <SignatureCapture onNext={handleNextFromSignature} />
+
+              <button
+                onClick={handleSkip}
+                type="button"
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--text-muted)',
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                  fontFamily: 'Geist, sans-serif',
+                  textDecoration: 'underline',
+                  alignSelf: 'center',
+                  marginTop: 16,
+                }}
+              >
+                Skip for now
+              </button>
+            </div>
+          </>
+        )}
+
+        {/* ── Signature review step ───────────────────────────────────────── */}
+        {step === 'signature_review' && pendingSignature && (
+          <>
+            {/* Close (X) button */}
+            <button
+              type="button"
+              onClick={handleClose}
+              title="Close"
+              style={{
+                position: 'absolute',
+                top: 16,
+                right: 16,
+                width: 28,
+                height: 28,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: 0,
+                border: 'none',
+                borderRadius: 6,
+                background: 'transparent',
+                color: 'var(--text-muted)',
+                cursor: 'pointer',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'var(--hover)';
+                e.currentTarget.style.color = 'var(--text-primary)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'transparent';
+                e.currentTarget.style.color = 'var(--text-muted)';
+              }}
+            >
+              <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18 6L6 18M6 6l12 12" />
+              </svg>
+            </button>
+
+            <div className="flex flex-col gap-6">
+              {countdown > 0 ? (
                 <>
-                  Already have an account?{' '}
-                  <button
-                    type="button"
-                    onClick={() => switchMode('login')}
-                    disabled={authLoading}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: 'var(--accent)',
-                      fontSize: 13,
-                      fontFamily: 'Geist, sans-serif',
-                      cursor: authLoading ? 'wait' : 'pointer',
-                      textDecoration: 'underline',
-                      padding: 0,
-                    }}
-                  >
-                    Sign in
-                  </button>
+                  <p style={{ fontSize: '14px', color: 'var(--text-primary)', textAlign: 'center', lineHeight: 1.5 }}>
+                    Your signature is something that's very important — take a moment to breathe.
+                  </p>
+                  <div style={{ textAlign: 'center' }}>
+                    <span style={{ fontSize: '32px', fontWeight: 600, color: 'var(--accent)', fontFamily: 'Geist, sans-serif' }}>
+                      {countdown}
+                    </span>
+                  </div>
                 </>
               ) : (
                 <>
-                  Don't have an account?{' '}
-                  <button
-                    type="button"
-                    onClick={() => switchMode('register')}
-                    disabled={authLoading}
+                  <p style={{ fontSize: '14px', color: 'var(--text-primary)', textAlign: 'center' }}>
+                    Here's your signature. Do you want to edit it?
+                  </p>
+                  <div
                     style={{
-                      background: 'none',
-                      border: 'none',
-                      color: 'var(--accent)',
-                      fontSize: 13,
-                      fontFamily: 'Geist, sans-serif',
-                      cursor: authLoading ? 'wait' : 'pointer',
-                      textDecoration: 'underline',
-                      padding: 0,
+                      padding: 16,
+                      background: 'var(--white)',
+                      border: '1px solid var(--border)',
+                      borderRadius: 8,
+                      display: 'flex',
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      minHeight: 80,
                     }}
                   >
-                    Create one
-                  </button>
+                    <img
+                      src={pendingSignature.dataUrl}
+                      alt="Your signature"
+                      style={{ maxHeight: 60, maxWidth: '100%', objectFit: 'contain' }}
+                    />
+                  </div>
+                  <div className="flex gap-3 justify-center">
+                    <button
+                      type="button"
+                      onClick={() => { setStep('signature'); setPendingSignature(null); }}
+                      style={{
+                        padding: '10px 20px',
+                        borderRadius: 999,
+                        border: '1px solid var(--border)',
+                        background: 'var(--canvas)',
+                        color: 'var(--text-primary)',
+                        fontSize: '13px',
+                        fontWeight: 500,
+                        fontFamily: 'Geist, sans-serif',
+                        cursor: 'pointer',
+                        transition: '150ms ease',
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--hover)'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--canvas)'; }}
+                    >
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSignatureSave(pendingSignature)}
+                      style={{
+                        padding: '10px 24px',
+                        borderRadius: 999,
+                        border: 'none',
+                        background: 'var(--text-primary)',
+                        color: 'var(--white)',
+                        fontSize: '13px',
+                        fontWeight: 500,
+                        fontFamily: 'Geist, sans-serif',
+                        cursor: 'pointer',
+                        transition: '150ms ease',
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.9'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
+                    >
+                      Looks good, continue
+                    </button>
+                  </div>
                 </>
               )}
-            </p>
-
-            {/* Continue without account */}
-            <button
-              type="button"
-              onClick={handleContinueToSignature}
-              disabled={authLoading}
-              style={{
-                marginTop: 12,
-                background: 'none',
-                border: 'none',
-                color: 'var(--text-muted)',
-                fontSize: 13,
-                fontFamily: 'Geist, sans-serif',
-                cursor: authLoading ? 'wait' : 'pointer',
-                textDecoration: 'underline',
-                alignSelf: 'center',
-              }}
-            >
-              Continue without account
-            </button>
-          </div>
-        )}
-
-        {step === 'signature' && (
-          <div className="flex flex-col gap-5">
-            <div>
-              <h2 style={{ fontSize: '16px', fontWeight: 500, color: 'var(--text-primary)' }}>
-                Save your signature
-              </h2>
-              <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: 4 }}>
-                We'll use this automatically whenever you need to sign something. You can draw, type, or upload an image of your signature.
-              </p>
             </div>
-
-            <SignatureCapture onNext={handleNextFromSignature} />
-
-            <button
-              onClick={handleSkip}
-              type="button"
-              style={{
-                background: 'none',
-                border: 'none',
-                color: 'var(--text-muted)',
-                fontSize: '13px',
-                cursor: 'pointer',
-                fontFamily: 'Geist, sans-serif',
-                textDecoration: 'underline',
-                alignSelf: 'center',
-                marginTop: 16,
-              }}
-            >
-              Skip for now
-            </button>
-          </div>
+          </>
         )}
 
-        {step === 'signature_review' && pendingSignature && (
-          <div className="flex flex-col gap-6">
-            {countdown > 0 ? (
-              <>
-                <p style={{ fontSize: '14px', color: 'var(--text-primary)', textAlign: 'center', lineHeight: 1.5 }}>
-                  Your signature is something that's very important — take a moment to breathe.
-                </p>
-                <div style={{ textAlign: 'center' }}>
-                  <span
-                    style={{
-                      fontSize: '32px',
-                      fontWeight: 600,
-                      color: 'var(--accent)',
-                      fontFamily: 'Geist, sans-serif',
-                    }}
-                  >
-                    {countdown}
-                  </span>
-                </div>
-              </>
-            ) : (
-              <>
-                <p style={{ fontSize: '14px', color: 'var(--text-primary)', textAlign: 'center' }}>
-                  Here's your signature. Do you want to edit it?
-                </p>
-                <div
-                  style={{
-                    padding: 16,
-                    background: 'var(--white)',
-                    border: '1px solid var(--border)',
-                    borderRadius: 8,
-                    display: 'flex',
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                    minHeight: 80,
-                  }}
-                >
-                  <img
-                    src={pendingSignature.dataUrl}
-                    alt="Your signature"
-                    style={{ maxHeight: 60, maxWidth: '100%', objectFit: 'contain' }}
-                  />
-                </div>
-                <div className="flex gap-3 justify-center">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setStep('signature');
-                      setPendingSignature(null);
-                    }}
-                    style={{
-                      padding: '10px 20px',
-                      borderRadius: 999,
-                      border: '1px solid var(--border)',
-                      background: 'var(--canvas)',
-                      color: 'var(--text-primary)',
-                      fontSize: '13px',
-                      fontWeight: 500,
-                      fontFamily: 'Geist, sans-serif',
-                      cursor: 'pointer',
-                      transition: '150ms ease',
-                    }}
-                    onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--hover)'; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--canvas)'; }}
-                  >
-                    Edit
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleSignatureSave(pendingSignature)}
-                    style={{
-                      padding: '10px 24px',
-                      borderRadius: 999,
-                      border: 'none',
-                      background: 'var(--text-primary)',
-                      color: 'var(--white)',
-                      fontSize: '13px',
-                      fontWeight: 500,
-                      fontFamily: 'Geist, sans-serif',
-                      cursor: 'pointer',
-                      transition: '150ms ease',
-                    }}
-                    onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.9'; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
-                  >
-                    Looks good, continue
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        )}
-
+        {/* ── Done step ───────────────────────────────────────────────────── */}
         {step === 'done' && (
           <div className="flex flex-col items-center gap-4 text-center py-6">
             <h2 style={{ fontSize: '18px', fontWeight: 500, color: 'var(--text-primary)' }}>

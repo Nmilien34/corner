@@ -69,8 +69,19 @@ export async function watermarkImage(
     `</svg>`,
   );
 
+  // The SVG canvas is diag×diag (larger than the image) so the rotated text isn't clipped.
+  // Crop the center w×h region to get an overlay that fits within the image bounds.
+  const svgCropped = await sharp(svgBuffer)
+    .extract({
+      left: Math.floor((diag - w) / 2),
+      top: Math.floor((diag - h) / 2),
+      width: w,
+      height: h,
+    })
+    .toBuffer();
+
   await sharp(file.path)
-    .composite([{ input: svgBuffer, gravity: gravity as sharp.Gravity }])
+    .composite([{ input: svgCropped, gravity: gravity as sharp.Gravity }])
     .toFile(outPath);
 
   try { fs.unlinkSync(file.path); } catch (_) {}

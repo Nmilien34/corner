@@ -20,5 +20,8 @@
   "description": "",
   "devDependencies": {
     "concurrently": "^9.2.1"
+  },
+  "dependencies": {
+    "lottie-react": "^2.4.1"
   }
 }

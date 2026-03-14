@@ -9,6 +9,7 @@ import { errorHandler } from './middleware/errorHandler';
 import { optionalAuth } from './middleware/auth';
 import { parseRoute } from './routes/parse';
 import { executeRoute } from './routes/execute';
+import { analyzeRoute } from './routes/analyze';
 import { authRoute } from './routes/auth';
 import { conversationsRoute } from './routes/conversations';
 import { orchestrateRoute } from './routes/orchestrate';
@@ -29,6 +30,7 @@ app.use('/api/auth',          authRoute);
 app.use('/api/conversations', conversationsRoute);
 app.use('/api/orchestrate',   optionalAuth, orchestrateRoute);
 app.use('/api/parse',         optionalAuth, parseRoute);
+app.use('/api/analyze',       optionalAuth, analyzeRoute);
 app.use('/api',               optionalAuth, executeRoute);
 
 // Centralized error handler — must be last

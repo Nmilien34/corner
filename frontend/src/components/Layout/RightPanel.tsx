@@ -2709,6 +2709,17 @@ export default function RightPanel({
       { Icon: PenLine, title: 'Sign & Fill' },
       { Icon: QrCode, title: 'Generate' },
       { Icon: Lock, title: 'Security' },
+      // Extra hints for common tool groups
+      { Icon: Presentation, title: 'Slides' },
+      { Icon: Table, title: 'Tables' },
+      { Icon: FileOutput, title: 'Export' },
+      { Icon: Users, title: 'Team' },
+      { Icon: ShieldCheck, title: 'Compliance' },
+      { Icon: BarChart2, title: 'Analytics' },
+      { Icon: Stamp, title: 'Branding' },
+      { Icon: ClipboardList, title: 'Forms' },
+      { Icon: LayoutGrid, title: 'Layouts' },
+      { Icon: Sparkles, title: 'AI Assist' },
     ];
     return (
       <aside

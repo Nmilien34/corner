@@ -3,6 +3,7 @@ import path from 'path';
 import FormData from 'form-data';
 import fetch from 'node-fetch';
 import { v4 as uuidv4 } from 'uuid';
+import { env } from '../config/env';
 import type { ServerToolResult } from '../types';
 
 const TMP_DIR = path.join(__dirname, '../../tmp/uploads');
@@ -57,7 +58,7 @@ async function transcribeWithDeepgram(
     {
       method: 'POST',
       headers: {
-        Authorization: `Token ${process.env.DEEPGRAM_API_KEY}`,
+        Authorization: `Token ${env.DEEPGRAM_API_KEY}`,
         'Content-Type': mimeTypes[ext] ?? 'audio/mpeg',
       },
       body: audioBuffer,
@@ -122,7 +123,7 @@ async function transcribeWithWhisper(
   const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+      Authorization: `Bearer ${env.OPENAI_API_KEY}`,
       ...form.getHeaders(),
     },
     body: form,
@@ -167,9 +168,9 @@ async function transcribeAudio(
     punctuation = true,
   } = options;
 
-  if (process.env.DEEPGRAM_API_KEY) {
+  if (env.DEEPGRAM_API_KEY) {
     return transcribeWithDeepgram(filePath, { language, speakerDiarization, punctuation });
-  } else if (process.env.OPENAI_API_KEY) {
+  } else if (env.OPENAI_API_KEY) {
     return transcribeWithWhisper(filePath, { language, punctuation });
   } else {
     throw new Error('No transcription API key found. Set DEEPGRAM_API_KEY or OPENAI_API_KEY in .env');

@@ -3,6 +3,7 @@ import path from 'path';
 import fetch from 'node-fetch';
 import FormData from 'form-data';
 import { v4 as uuidv4 } from 'uuid';
+import { env } from '../config/env';
 import { ServerToolResult } from '../types';
 
 const TMP_DIR = path.join(__dirname, '../../tmp/uploads');
@@ -13,7 +14,7 @@ export async function removeBackground(
   if (!files.length) throw new Error('No file provided');
   const file = files[0];
 
-  const apiKey = process.env.REMOVE_BG_API_KEY;
+  const apiKey = env.REMOVE_BG_API_KEY;
   if (!apiKey || apiKey === 'your_key_here') {
     throw new Error(
       'REMOVE_BG_API_KEY is not configured. Set it in server/.env to use background removal.'

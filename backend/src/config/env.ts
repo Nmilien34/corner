@@ -20,4 +20,12 @@ export const env = {
   JWT_REFRESH_SECRET:  required('JWT_REFRESH_SECRET'),
   JWT_ACCESS_EXPIRES:  process.env.JWT_ACCESS_EXPIRES  ?? '15m',
   JWT_REFRESH_EXPIRES: process.env.JWT_REFRESH_EXPIRES ?? '30d',
+  /** Optional: for remove.bg API (background removal). Read at access time so tests can mutate process.env. */
+  get REMOVE_BG_API_KEY(): string | null {
+    return process.env.REMOVE_BG_API_KEY ?? null;
+  },
+  /** Optional: for Deepgram transcription (preferred over OpenAI for audio). Read at access time so tests can mutate process.env. */
+  get DEEPGRAM_API_KEY(): string | null {
+    return process.env.DEEPGRAM_API_KEY ?? null;
+  },
 };

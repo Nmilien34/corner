@@ -22,6 +22,7 @@ import FoldersPage from './pages/FoldersPage';
 import FolderDetailPage from './pages/FolderDetailPage';
 import ConversationListPage from './pages/ConversationListPage';
 import OnboardingModal from './components/Onboarding/OnboardingModal';
+import LandingPage from './pages/LandingPage';
 import { useIntent } from './hooks/useIntent';
 import { useVersionHistory } from './hooks/useVersionHistory';
 import { useConversations } from './hooks/useConversations';
@@ -29,6 +30,7 @@ import { useFolders } from './hooks/useFolders';
 import { useAuth } from './hooks/useAuth';
 import { Toaster } from './components/ui/toaster';
 import { toast } from './hooks/use-toast';
+import { api } from './lib/api';
 import type {
   AppMode,
   ChatMessage,
@@ -106,6 +108,7 @@ export default function App() {
   const [panelSettings, setPanelSettings] = useState<RightPanelSettings>({});
   const [lastTool, setLastTool] = useState<ToolName | null>(null);
   const [onboardingVisible, setOnboardingVisible] = useState(false);
+  const [landingVisible, setLandingVisible] = useState(() => !localStorage.getItem('corner:landing-seen'));
   const [inputFocused, setInputFocused] = useState(false);
   const [leftPanelOpen, setLeftPanelOpen] = useState(true); // default expanded; user can collapse
   const [activeNav, setActiveNav] = useState<'recent' | 'starred' | 'trash'>('recent');
@@ -114,6 +117,13 @@ export default function App() {
   const [chatCollapsed, setChatCollapsed] = useState(false); // true = chat sidebar hidden, doc goes full-width
   const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null); // object URL for currentFile preview in split
   const auth = useAuth();
+
+  // Auto-hide landing for already-authenticated users
+  useEffect(() => {
+    if (auth.user && landingVisible) {
+      setLandingVisible(false);
+    }
+  }, [auth.user, landingVisible]);
   const leftPanelUser: LeftPanelUser | null = auth.user
     ? { name: auth.user.displayName, email: auth.user.email, plan: auth.user.plan }
     : null;
@@ -203,6 +213,7 @@ export default function App() {
     onPlanUnderstanding: (text) => setPlanUnderstanding(text),
     onResult: (result, tool) => {
       const isStudyTool = ['summarize_document', 'generate_study_questions', 'extract_key_terms'].includes(tool);
+      const isTextResult = Boolean(result.textContent?.trim());
       const isAudioTool =
         tool === 'transcribe_audio' ||
         tool === 'extract_audio' ||
@@ -213,15 +224,15 @@ export default function App() {
       // so the user never loses context of what they uploaded.
       const keepSourceDocOnLeft = !isAudioTool;
       const completionMessage = (result as ToolResult & { message?: string }).message ?? "Here's your processed document.";
-      const bodyContent = isStudyTool && result.textContent ? result.textContent : completionMessage;
+      const bodyContent = result.textContent?.trim() ?? completionMessage;
 
       if (!keepSourceDocOnLeft) {
         setCurrentResult(result);
         setMode('result');
         addNode(result.fileName, undefined, result.downloadUrl, toolToFriendlyOperation(tool));
         setCanvasViewMode(true);
-      } else if (!isStudyTool) {
-        // For conversions, still add the output to history (without switching the left viewer).
+      } else if (!isStudyTool && !isTextResult) {
+        // For conversions (with file output), add the output to history (without switching the left viewer).
         addNode(result.fileName, undefined, result.downloadUrl, toolToFriendlyOperation(tool));
         setMode('result');
       }
@@ -236,7 +247,7 @@ export default function App() {
           content: bodyContent,
           timestamp: Date.now(),
           result,
-          ...(isStudyTool && { toolName: tool }),
+          ...((isStudyTool || isTextResult) && { toolName: tool }),
         },
       ]);
       setPlanUnderstanding(null);
@@ -354,6 +365,53 @@ export default function App() {
       setMode((currentFile || currentResult) ? 'result' : 'empty');
     }
   }, [processing, mode, currentResult]);
+
+  /** Quick action: send intent directly to /analyze (bypass parse). Adds intent + result messages. */
+  const handleQuickAction = useCallback(
+    async (intent: string) => {
+      const file = currentFiles[0] ?? null;
+      if (!file) return;
+      const labels: Record<string, string> = {
+        summarize: 'Summarize',
+        study_questions: 'Study questions',
+        key_terms: 'Key terms',
+        citation_generator: 'Get citation',
+        contract_review: 'Review contract',
+        action_items: 'Action items',
+        email_draft: 'Draft email',
+        sensitive_data: 'Scan for sensitive data',
+      };
+      const label = labels[intent] ?? intent;
+      setProcessing({ progress: 50, label: 'Analyzing...' });
+      setMessages((prev) => [
+        ...prev,
+        { id: crypto.randomUUID(), role: 'corner', content: label, timestamp: Date.now() },
+      ]);
+      try {
+        const data = await api.analyzeDocument(file, intent);
+        setProcessing({ progress: 100, label: 'Done' });
+        await new Promise((r) => setTimeout(r, 300));
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: crypto.randomUUID(),
+            role: 'corner',
+            type: 'analysis' as const,
+            content: data.result,
+            analysisType: data.analysisType as import('./types').AnalysisType,
+            exportable: data.exportable,
+            timestamp: Date.now(),
+          },
+        ]);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Analysis failed';
+        toast({ variant: 'destructive', title: 'Error', description: msg });
+      } finally {
+        setProcessing(null);
+      }
+    },
+    [currentFiles]
+  );
 
   const handleVersionRestore = useCallback((v: VersionNode) => {
     setCurrentResult({
@@ -741,6 +799,7 @@ export default function App() {
                     currentFiles={currentFiles}
                     onClearCurrentFiles={currentFiles.length > 0 ? () => setCurrentFiles([]) : undefined}
                     onCollapse={() => setChatCollapsed(true)}
+                    onQuickAction={handleQuickAction}
                   />
                 )}
               </>
@@ -937,6 +996,20 @@ export default function App() {
           onSettingsChange={(patch) => setPanelSettings((prev) => ({ ...prev, ...patch }))}
         />
       </div>
+
+      {landingVisible && (
+        <LandingPage
+          onGetStarted={() => {
+            localStorage.setItem('corner:landing-seen', '1');
+            setLandingVisible(false);
+            setOnboardingVisible(true);
+          }}
+          onSkip={() => {
+            localStorage.setItem('corner:landing-seen', '1');
+            setLandingVisible(false);
+          }}
+        />
+      )}
 
       {onboardingVisible && (
         <OnboardingModal
